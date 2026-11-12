@@ -273,6 +273,10 @@ export const Tasks = () => {
                           {isOverdue && <span>(Overdue)</span>}
                         </span>
                       )}
+                      <span className="flex items-center gap-1 font-medium text-slate-500">
+                        <Clock className="w-3.5 h-3.5 text-brand-500" />
+                        {t.loggedHours || 0}h / {t.estimatedHours || 0}h
+                      </span>
                       {checklistTotal > 0 && (
                         <span>
                           Checklist: {checklistDone}/{checklistTotal}
@@ -328,3 +332,4 @@ export const Tasks = () => {
 };
 
 export default Tasks;
+

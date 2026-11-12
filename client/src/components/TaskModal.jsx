@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useTimer } from '../context/TimerContext';
 import {
   X,
   Clock,
@@ -20,10 +22,14 @@ import {
   AtSign,
   Tag,
   Flag,
+  Play,
+  Square,
 } from 'lucide-react';
 
 export const TaskModal = ({ taskId, onClose, onTaskUpdated, allEmployees = [] }) => {
+  const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
+  const { activeTimer, isRunning, startTimer, stopTimer } = useTimer();
   const [task, setTask] = useState(null);
   const [subtasks, setSubtasks] = useState([]);
   const [comments, setComments] = useState([]);
@@ -35,6 +41,7 @@ export const TaskModal = ({ taskId, onClose, onTaskUpdated, allEmployees = [] })
   const [selectedMentions, setSelectedMentions] = useState([]);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [timerLoading, setTimerLoading] = useState(false);
 
   const fetchTaskDetails = async () => {
     try {
@@ -96,6 +103,32 @@ export const TaskModal = ({ taskId, onClose, onTaskUpdated, allEmployees = [] })
       }
     } catch (err) {
       console.error('Failed to toggle checklist', err);
+    }
+  };
+
+  const isThisTaskTimerRunning =
+    isRunning && (activeTimer?.task?._id || activeTimer?.task) === task?._id;
+
+  const handleToggleTimer = async () => {
+    if (!hasPermission('activity.logOwn')) return;
+    try {
+      setTimerLoading(true);
+      if (isThisTaskTimerRunning) {
+        await stopTimer();
+        fetchTaskDetails();
+      } else {
+        await startTimer({
+          project: task.project?._id || task.project,
+          task: task._id,
+          description: task.title,
+          isBillable: true,
+          category: 'project_work',
+        });
+      }
+    } catch (err) {
+      alert(err.message || 'Timer action failed');
+    } finally {
+      setTimerLoading(false);
     }
   };
 
@@ -280,10 +313,40 @@ export const TaskModal = ({ taskId, onClose, onTaskUpdated, allEmployees = [] })
             </div>
 
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Estimated</span>
-              <div className="text-xs font-semibold mt-1 text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                {task.estimatedHours || 0} hrs
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Time Logged</span>
+              <div className="text-xs font-semibold mt-1 text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-brand-600" />
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {task.loggedHours || 0}h
+                  </span>
+                  <span className="text-slate-400">/ {task.estimatedHours || 0}h</span>
+                </div>
+
+                {hasPermission('activity.logOwn') && (
+                  <button
+                    onClick={handleToggleTimer}
+                    disabled={timerLoading}
+                    title={isThisTaskTimerRunning ? 'Stop Timer' : 'Start Timer for this task'}
+                    className={`p-1 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-bold ${
+                      isThisTaskTimerRunning
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                        : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    }`}
+                  >
+                    {isThisTaskTimerRunning ? (
+                      <>
+                        <Square className="w-2.5 h-2.5 fill-current" />
+                        Stop
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-2.5 h-2.5 fill-current" />
+                        Timer
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -564,3 +627,4 @@ export const TaskModal = ({ taskId, onClose, onTaskUpdated, allEmployees = [] })
 };
 
 export default TaskModal;
+

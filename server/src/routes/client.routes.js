@@ -21,3 +21,4 @@ router.put('/:id', requirePermission('client.update'), upload.single('logo'), up
 router.delete('/:id', requirePermission('client.delete'), deleteClient);
 
 export default router;
+

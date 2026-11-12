@@ -14,6 +14,7 @@ export const maskProjectFinancials = (project, permissions = []) => {
 
   const copy = typeof project.toObject === 'function' ? project.toObject() : { ...project };
   delete copy.budget;
+  delete copy.costToDate;
   if (Array.isArray(copy.members)) {
     copy.members = copy.members.map((m) => {
       const mCopy = typeof m.toObject === 'function' ? m.toObject() : { ...m };
@@ -29,6 +30,22 @@ export const maskProjectFinancials = (project, permissions = []) => {
     });
   }
   return copy;
+};
+
+/**
+ * Helper to check whether user is authorized to manage a specific project
+ * Super Admin & Admin can edit all projects.
+ * Project Managers can edit ONLY projects where they are the projectManager.
+ */
+export const canUserManageProject = (project, req) => {
+  if (!project || !req.user) return false;
+  const isSuperAdminOrAdmin =
+    req.permissions?.includes('*') ||
+    ['super_admin', 'admin'].includes(req.userRole) ||
+    ['super_admin', 'admin'].includes(req.user?.role?.key);
+  if (isSuperAdminOrAdmin) return true;
+
+  return project.projectManager?.toString() === req.user?.employee?.toString();
 };
 
 /**
@@ -434,12 +451,13 @@ export const updateProject = async (req, res, next) => {
       return sendError(res, 'Project not found', 404);
     }
 
-    // Check project management permission
-    const hasFullManage =
-      req.permissions?.includes('*') || req.permissions?.includes('project.update');
-    const isManager = project.projectManager?.toString() === req.user?.employee?.toString();
-    if (!hasFullManage && !isManager) {
-      return sendError(res, 'You do not have permission to update this project', 403);
+    if (!canUserManageProject(project, req)) {
+      return sendError(res, 'You can only edit projects where you are the designated project manager', 403);
+    }
+
+    // Check project management permission: Admin can edit all; PM only their own
+    if (!canUserManageProject(project, req)) {
+      return sendError(res, 'You can only edit projects where you are the designated project manager', 403);
     }
 
     const parsed = createProjectSchema.partial().safeParse(req.body);
@@ -485,6 +503,10 @@ export const changeProjectStatus = async (req, res, next) => {
       return sendError(res, 'Project not found', 404);
     }
 
+    if (!canUserManageProject(project, req)) {
+      return sendError(res, 'You can only edit projects where you are the designated project manager', 403);
+    }
+
     const oldStatus = project.status;
     project.status = status;
     if (status === 'completed') {
@@ -522,6 +544,10 @@ export const addProjectMember = async (req, res, next) => {
     const project = await Project.findOne({ _id: req.params.id, isDeleted: false });
     if (!project) {
       return sendError(res, 'Project not found', 404);
+    }
+
+    if (!canUserManageProject(project, req)) {
+      return sendError(res, 'You can only edit projects where you are the designated project manager', 403);
     }
 
     const alreadyMember = project.members.some(
@@ -565,6 +591,10 @@ export const removeProjectMember = async (req, res, next) => {
       return sendError(res, 'Project not found', 404);
     }
 
+    if (!canUserManageProject(project, req)) {
+      return sendError(res, 'You can only edit projects where you are the designated project manager', 403);
+    }
+
     project.members = project.members.filter(
       (m) => m.employee.toString() !== req.params.employeeId
     );
@@ -597,6 +627,10 @@ export const addMilestone = async (req, res, next) => {
     const project = await Project.findOne({ _id: req.params.id, isDeleted: false });
     if (!project) return sendError(res, 'Project not found', 404);
 
+    if (!canUserManageProject(project, req)) {
+      return sendError(res, 'You can only edit projects where you are the designated project manager', 403);
+    }
+
     project.milestones.push({
       name,
       dueDate: dueDate ? new Date(dueDate) : null,
@@ -615,6 +649,10 @@ export const updateMilestone = async (req, res, next) => {
   try {
     const project = await Project.findOne({ _id: req.params.id, isDeleted: false });
     if (!project) return sendError(res, 'Project not found', 404);
+
+    if (!canUserManageProject(project, req)) {
+      return sendError(res, 'You can only edit projects where you are the designated project manager', 403);
+    }
 
     const milestone = project.milestones.id(req.params.milestoneId);
     if (!milestone) return sendError(res, 'Milestone not found', 404);
@@ -643,6 +681,10 @@ export const uploadProjectAttachment = async (req, res, next) => {
 
     const project = await Project.findOne({ _id: req.params.id, isDeleted: false });
     if (!project) return sendError(res, 'Project not found', 404);
+
+    if (!canUserManageProject(project, req)) {
+      return sendError(res, 'You can only edit projects where you are the designated project manager', 403);
+    }
 
     const attachment = {
       name: req.file.originalname || 'Attachment',
@@ -679,6 +721,10 @@ export const deleteProject = async (req, res, next) => {
     const project = await Project.findOne({ _id: req.params.id, isDeleted: false });
     if (!project) return sendError(res, 'Project not found', 404);
 
+    if (!canUserManageProject(project, req)) {
+      return sendError(res, 'You can only edit projects where you are the designated project manager', 403);
+    }
+
     project.isDeleted = true;
     await project.save();
 
@@ -695,3 +741,4 @@ export const deleteProject = async (req, res, next) => {
     next(err);
   }
 };
+

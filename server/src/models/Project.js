@@ -159,6 +159,16 @@ const projectSchema = new mongoose.Schema(
       min: 0,
       max: 100
     },
+    loggedHours: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    costToDate: {
+      type: Number, // Stored in paise (integer math)
+      default: 0,
+      min: 0
+    },
     milestones: [milestoneSchema],
     attachments: [attachmentSchema],
     tags: [
@@ -193,3 +203,4 @@ projectSchema.pre('save', async function (next) {
 });
 
 export default mongoose.model('Project', projectSchema);
+

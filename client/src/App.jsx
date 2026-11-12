@@ -16,6 +16,7 @@ import { Clients } from './pages/Clients';
 import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { Tasks } from './pages/Tasks';
+import { ActivityTracker } from './pages/ActivityTracker';
 
 export const App = () => {
   return (
@@ -103,6 +104,23 @@ export const App = () => {
           element={
             <ProtectedRoute requiredPermission="client.read">
               <Clients />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Activity Tracker Module (Live) */}
+        <Route
+          path="tracker"
+          element={
+            <ProtectedRoute
+              requiredPermission={[
+                'activity.logOwn',
+                'activity.readOwn',
+                'activity.readTeam',
+                'activity.readAll',
+              ]}
+            >
+              <ActivityTracker />
             </ProtectedRoute>
           }
         />

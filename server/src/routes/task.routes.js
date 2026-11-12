@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
-import { upload } from '../middleware/upload.js';
+import { upload, taskAttachmentUpload } from '../middleware/upload.js';
 import {
   getTasks,
   getMyTasks,
@@ -13,6 +13,8 @@ import {
   bulkUpdateTasks,
   deleteTask,
   addTaskComment,
+  updateTaskComment,
+  deleteTaskComment,
   getTaskComments,
   getTaskActivity,
   uploadTaskAttachment,
@@ -34,9 +36,12 @@ router.post('/bulk-update', requirePermission('task.update'), bulkUpdateTasks);
 router.delete('/:id', requirePermission('task.delete'), deleteTask);
 
 router.post('/:id/comments', requirePermission('task.comment'), addTaskComment);
+router.put('/:id/comments/:commentId', requirePermission('task.comment'), updateTaskComment);
+router.delete('/:id/comments/:commentId', requirePermission('task.comment'), deleteTaskComment);
 router.get('/:id/comments', requirePermission(['task.read', 'task.readOwn']), getTaskComments);
 router.get('/:id/activity', requirePermission(['task.read', 'task.readOwn']), getTaskActivity);
 
-router.post('/:id/attachments', requirePermission('task.update'), upload.single('file'), uploadTaskAttachment);
+router.post('/:id/attachments', requirePermission('task.update'), taskAttachmentUpload.single('file'), uploadTaskAttachment);
 
 export default router;
+

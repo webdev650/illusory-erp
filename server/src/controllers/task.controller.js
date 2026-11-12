@@ -9,6 +9,33 @@ import { logAudit } from '../middleware/audit.js';
 import { recalculateProjectProgress } from './project.controller.js';
 import { notifyEmployee } from '../services/notification.service.js';
 
+/**
+ * Helper to check whether user is authorized to edit a specific task
+ * Super Admin & Admin can edit all tasks.
+ * Project Managers can edit tasks in projects they manage.
+ * Employees can edit tasks assigned to them or reported by them.
+ */
+export const canUserEditTask = async (task, req) => {
+  if (!task || !req.user) return false;
+  const isSuperAdminOrAdmin =
+    req.permissions?.includes('*') ||
+    ['super_admin', 'admin'].includes(req.userRole) ||
+    ['super_admin', 'admin'].includes(req.user?.role?.key);
+  if (isSuperAdminOrAdmin) return true;
+
+  const userEmpId = req.user.employee?.toString();
+  if (!userEmpId) return false;
+
+  const isAssignee = Array.isArray(task.assignees) && task.assignees.some((a) => a.toString() === userEmpId);
+  const isReporter = task.reporter?.toString() === userEmpId;
+  if (isAssignee || isReporter) return true;
+
+  const project = await Project.findById(task.project).select('projectManager');
+  if (project?.projectManager?.toString() === userEmpId) return true;
+
+  return false;
+};
+
 // Zod schemas
 const taskSchema = z.object({
   title: z.string().min(2, 'Task title is required'),
@@ -355,6 +382,11 @@ export const updateTask = async (req, res, next) => {
       return sendError(res, 'Task not found', 404);
     }
 
+    const canEdit = await canUserEditTask(task, req);
+    if (!canEdit) {
+      return sendError(res, 'You can only edit tasks assigned to you or in projects you manage', 403);
+    }
+
     const parsed = taskSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       return sendError(res, 'Validation error', 400, parsed.error.format());
@@ -433,6 +465,11 @@ export const patchTaskStatus = async (req, res, next) => {
       return sendError(res, 'Task not found', 404);
     }
 
+    const canEdit = await canUserEditTask(task, req);
+    if (!canEdit) {
+      return sendError(res, 'You can only edit tasks assigned to you or in projects you manage', 403);
+    }
+
     const oldStatus = task.status;
     task.status = status;
     if (order !== undefined) {
@@ -484,6 +521,22 @@ export const reorderTasks = async (req, res, next) => {
     const { tasks } = req.body; // array of { id, status, order }
     if (!Array.isArray(tasks) || tasks.length === 0) {
       return sendError(res, 'tasks array is required', 400);
+    }
+
+    // Authorization check: Verify user can edit tasks in all affected projects
+    for (const item of tasks) {
+      if (!item.id) continue;
+      const t = await Task.findById(item.id);
+      if (t) {
+        const canEdit = await canUserEditTask(t, req);
+        if (!canEdit) {
+          return sendError(
+            res,
+            `Access denied. You do not have permission to reorder task [${t.taskCode || t.title}] in this project.`,
+            403
+          );
+        }
+      }
     }
 
     const impactedProjects = new Set();
@@ -573,6 +626,11 @@ export const deleteTask = async (req, res, next) => {
       return sendError(res, 'Task not found', 404);
     }
 
+    const canEdit = await canUserEditTask(task, req);
+    if (!canEdit) {
+      return sendError(res, 'You can only edit tasks assigned to you or in projects you manage', 403);
+    }
+
     task.isDeleted = true;
     await task.save();
 
@@ -606,6 +664,11 @@ export const addTaskComment = async (req, res, next) => {
     const task = await Task.findOne({ _id: req.params.id, isDeleted: false });
     if (!task) {
       return sendError(res, 'Task not found', 404);
+    }
+
+    const canEdit = await canUserEditTask(task, req);
+    if (!canEdit) {
+      return sendError(res, 'You can only edit tasks assigned to you or in projects you manage', 403);
     }
 
     const comment = await TaskComment.create({
@@ -717,6 +780,11 @@ export const uploadTaskAttachment = async (req, res, next) => {
       return sendError(res, 'Task not found', 404);
     }
 
+    const canEdit = await canUserEditTask(task, req);
+    if (!canEdit) {
+      return sendError(res, 'You can only edit tasks assigned to you or in projects you manage', 403);
+    }
+
     const attachment = {
       name: req.file.originalname || 'Attachment',
       url: req.file.path || req.file.secure_url,
@@ -740,3 +808,70 @@ export const uploadTaskAttachment = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * Update comment (author or admin only)
+ * PUT /api/v1/tasks/:id/comments/:commentId
+ */
+export const updateTaskComment = async (req, res, next) => {
+  try {
+    const { id, commentId } = req.params;
+    const { body } = req.body;
+    if (!body || !body.trim()) {
+      return sendError(res, 'Comment text cannot be empty', 400);
+    }
+
+    const comment = await TaskComment.findOne({ _id: commentId, task: id });
+    if (!comment) {
+      return sendError(res, 'Comment not found', 404);
+    }
+
+    const isAuthor = comment.author?.toString() === req.user?._id?.toString();
+    const isAdmin =
+      req.permissions?.includes('*') ||
+      ['super_admin', 'admin'].includes(req.userRole) ||
+      ['super_admin', 'admin'].includes(req.user?.role?.key);
+
+    if (!isAuthor && !isAdmin) {
+      return sendError(res, 'Only the author or administrators can edit this comment', 403);
+    }
+
+    comment.body = body.trim();
+    comment.editedAt = new Date();
+    await comment.save();
+
+    return sendSuccess(res, 'Comment updated successfully', comment);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Delete comment (author or admin only)
+ * DELETE /api/v1/tasks/:id/comments/:commentId
+ */
+export const deleteTaskComment = async (req, res, next) => {
+  try {
+    const { id, commentId } = req.params;
+    const comment = await TaskComment.findOne({ _id: commentId, task: id });
+    if (!comment) {
+      return sendError(res, 'Comment not found', 404);
+    }
+
+    const isAuthor = comment.author?.toString() === req.user?._id?.toString();
+    const isAdmin =
+      req.permissions?.includes('*') ||
+      ['super_admin', 'admin'].includes(req.userRole) ||
+      ['super_admin', 'admin'].includes(req.user?.role?.key);
+
+    if (!isAuthor && !isAdmin) {
+      return sendError(res, 'Only the author or administrators can delete this comment', 403);
+    }
+
+    await comment.deleteOne();
+    return sendSuccess(res, 'Comment deleted successfully', null);
+  } catch (err) {
+    next(err);
+  }
+};
+

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import { NavbarTimer } from './NavbarTimer';
 
 export const Navbar = ({ setIsMobileOpen }) => {
   const { user, role, logout } = useAuth();
@@ -118,6 +119,9 @@ export const Navbar = ({ setIsMobileOpen }) => {
 
       {/* Right section: notifications, theme toggle & user profile */}
       <div className="flex items-center space-x-2.5 sm:space-x-3">
+        {/* Live Running Timer Pill */}
+        <NavbarTimer />
+
         {/* Notification Bell */}
         <div className="relative">
           <button

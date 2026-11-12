@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
-import { upload } from '../middleware/upload.js';
+import { upload, taskAttachmentUpload } from '../middleware/upload.js';
 import {
   getProjects,
   getMyProjects,
@@ -37,7 +37,8 @@ router.delete('/:id/members/:employeeId', requirePermission('project.manageMembe
 router.post('/:id/milestones', requirePermission('project.update'), addMilestone);
 router.put('/:id/milestones/:milestoneId', requirePermission('project.update'), updateMilestone);
 
-router.post('/:id/attachments', requirePermission('project.update'), upload.single('file'), uploadProjectAttachment);
+router.post('/:id/attachments', requirePermission('project.update'), taskAttachmentUpload.single('file'), uploadProjectAttachment);
 router.delete('/:id', requirePermission('project.delete'), deleteProject);
 
 export default router;
+

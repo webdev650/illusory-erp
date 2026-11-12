@@ -1,4 +1,4 @@
-# ✨ Illusory ERP — Day 3 Monorepo
+# ✨ Illusory ERP — Day 4 Monorepo
 
 Custom Enterprise Resource Planning & Agency Operating System built for **Illusory Design Studios Pvt. Ltd.** (Bhubaneswar, Odisha, India).
 
@@ -6,27 +6,62 @@ Custom Enterprise Resource Planning & Agency Operating System built for **Illuso
 
 ## 🏗️ Architecture & Modules Overview
 
-Illusory ERP is organized into **16 core modules** defined in a shared registry (`src/config/modules.js`):
+Illusory ERP is organized into **16 core modules** defined in a shared architectural registry (`src/config/modules.js`):
 
-| # | Module Key | Module Name | Day 3 Status | Primary Permission | Description |
+| # | Module Key | Module Name | Status | Primary Permissions | Description |
 |---|---|---|---|---|---|
-| 1 | `home` | **Home** | 🟢 Live | Public (Auth) | Personal overview, live punch clock, leave balances, my open tasks, active projects, announcements |
+| 1 | `home` | **Home** | 🟢 Live | Public (Auth) | Personal overview, live punch clock, leave balances, my open tasks, active projects, studio announcements |
 | 2 | `hrms` | **HRMS (Employee Master)** | 🟢 Live | `employee.read` | Master employee records, onboarding wizard, document vault, masked statutory fields |
 | 3 | `hr` | **HR Operations** | 🟢 Live | `hr.access` | Attendance tracking, check-in/out, leave approvals, Odisha holiday calendar, 30-day analytics |
 | 4 | `projects` | **Projects** | 🟢 Live | `project.read` / `project.readOwn` | Client design & engineering contracts, milestone sign-offs, burn-rate tracking, team allocation |
 | 5 | `tasks` | **Tasks** | 🟢 Live | `task.read` / `task.readOwn` | 6-column Kanban board, sprint priorities, checklist progress, comments with @mentions, subtasks |
 | 6 | `clients` | **Clients** | 🟢 Live | `client.read` | Client directory, legal accounts, contact persons, GST numbers, and contracted project history |
-| 7 | `payroll` | **Payroll** | 🟡 Soon | `payroll.viewAll` | Automated salary slip generation, TDS/EPF/ESI compliance, bank disbursement |
-| 8 | `recruitment` | **Recruitment & ATS** | 🟡 Soon | `recruitment.read`| Job requisitions, applicant pipeline, candidate scorecards, offer letter generator |
-| 9 | `crm` | **CRM & Pipeline** | 🟡 Soon | `crm.viewAll` | Lead qualification stages, deal values, proposal builder with revision tracking |
-| 10 | `assets` | **Assets** | 🟡 Soon | `asset.read` | Studio hardware inventory (MacBooks/PCs), handover sign-offs, software license renewals |
-| 11 | `travel_expense`| **Travel & Expense** | 🟡 Soon | `travel.read` | Client trip travel estimates, multi-currency expense claims, receipt uploads |
-| 12 | `activity_tracker`| **Activity Tracker** | 🟡 Soon | `tracker.read` | Daily agency timesheet submissions, billable vs non-billable client hour tracking |
+| 7 | `activity_tracker`| **Activity Tracker** | 🟢 Live | `activity.logOwn` / `activity.readOwn` | Daily time logs, live timer with navbar clock, weekly timesheets with approvals, team capacity, and reports |
+| 8 | `payroll` | **Payroll** | 🟡 Soon | `payroll.viewAll` | Automated salary slip generation, TDS/EPF/ESI compliance, bank disbursement |
+| 9 | `recruitment` | **Recruitment & ATS** | 🟡 Soon | `recruitment.read`| Job requisitions, applicant pipeline, candidate scorecards, offer letter generator |
+| 10 | `crm` | **CRM & Pipeline** | 🟡 Soon | `crm.viewAll` | Lead qualification stages, deal values, proposal builder with revision tracking |
+| 11 | `assets` | **Assets** | 🟡 Soon | `asset.read` | Studio hardware inventory (MacBooks/PCs), handover sign-offs, software license renewals |
+| 12 | `travel_expense`| **Travel & Expense** | 🟡 Soon | `travel.read` | Client trip travel estimates, multi-currency expense claims, receipt uploads |
 | 13 | `reports` | **Reports** | 🟡 Soon | `report.view` | Consolidated agency turnover, departmental cost analytics, custom CSV export |
 | 14 | `support` | **Support Helpdesk** | 🟡 Soon | `support.read` | Internal ticketing system for IT, facilities, and HR queries with SLA escalation |
 | 15 | `utilities` | **Utilities** | 🟡 Soon | `utility.read` | Meeting room bookings, official company policy handbook, contract templates |
 | 16 | `configurations`| **Configurations** | 🟢 Live | `user.manage` | User management, password resets, dynamic RBAC permission keys, department CRUD |
 | 17 | `finance` | **Finance** | 🟡 Soon | `finance.viewAll` | Client GST invoicing, vendor bills, P&L ledgers, and bank reconciliation |
+
+---
+
+## ⏱️ Day 4: Activity Tracker Module Features
+
+### 1. Data Models & Financial Accuracy
+- **`TimeEntry`**: Employee, date (day in IST), project, task, category (`project_work`, `meeting`, `review`, `learning`, `admin`, `internal`, `support`, `other`), description, startTime, endTime, durationMinutes (integer 5 to 960), isBillable, source (`manual` or `timer`), timesheet reference, status (`draft`, `submitted`, `approved`, `rejected`), `isDeleted`.
+- **`Timesheet`**: Employee, weekStart (Monday 00:00:00 IST), weekEnd (Sunday 23:59:59 IST), totalMinutes, billableMinutes, status (`draft`, `submitted`, `approved`, `rejected`, `reopened`), submittedAt, approvalRequest, reviewedBy, reviewedAt, reviewComment. Compound unique index: `{ employee: 1, weekStart: 1 }`.
+- **`ActiveTimer`**: Employee (unique), project, task, category, description, startedAt. Strictly one active timer per employee. Forgotten timers (>12h) flagged automatically.
+- **Dynamic Project & Task Recalculation**: Tasks dynamically update `loggedHours`. Projects dynamically track `loggedHours` and `costToDate` calculated strictly in integer paise (`Math.round((durationMinutes / 60) * memberBillingRatePerHour)`).
+
+### 2. Business Rules & Timesheet Lifecycle
+- **Daily Limits**: Minimum 5 minutes, maximum 16 hours (960 minutes) per day across entries.
+- **Backdating**: Backdating &le; 14 days allowed by default; entries older than 14 days require `activity.editAll` or reopening the timesheet. Future dates are strictly rejected.
+- **Submission Window**: Weekly timesheet can be submitted from Friday 00:00 IST onward or anytime after the week closes.
+- **Capacity Warnings**: If logged hours are under 80% of expected hours (Shift hours &minus; holidays &minus; approved leaves), a warning modal is presented before submission.
+- **Entry Locking**: When a timesheet is submitted or approved, all associated daily time entries are locked from modification or deletion. Reopening unlocks them.
+
+### 3. Live Running Timer
+- **Navbar Timer**: Compact running pill in the top header displaying a pulsing status dot, live `HH:MM:SS` ticking clock, project tag, and quick stop button.
+- **Task Integration**: TaskModal displays logged vs estimated hours alongside a "Play/Stop Timer" button that launches the active timer with the task and project pre-attached.
+
+### 4. Timesheet Approvals & Team Capacity
+- **Approval Workflow**: Integrated with the system `ApprovalRequest` engine (`type: 'timesheet'`). Routed to the reporting manager (or project manager / HR).
+- **Inspect Entries Drawer**: Approvers can drill down into all 7 days of entries before approving or rejecting with mandatory comments.
+- **Missing Timesheets Report**: Highlights team members who have not submitted their previous week's timesheet.
+
+### 5. Visual Reports & Analytics
+- **Recharts Analytics**: Interactive bar charts for hours by project and employee, and donut charts for category distributions.
+- **Cost Privacy**: Agency costs (`costToDate`) are strictly masked unless the requesting user possesses `activity.viewCost`.
+- **CSV Export**: Full export of all time entries within any date range formatted for external accounting or audit.
+
+### 6. Scheduled Automations (node-cron)
+- **Friday 17:00 IST**: Automated reminder to team members with pending draft entries to submit their weekly timesheet.
+- **Monday 10:00 IST**: Automated notification reminder to managers to review pending timesheet submissions.
 
 ---
 
@@ -42,9 +77,9 @@ The system enforces permissions through `requirePermission(key)` middleware and 
 - **Clients**: `client.read`, `client.create`, `client.update`, `client.delete`
 - **Projects**: `project.read`, `project.readOwn`, `project.create`, `project.update`, `project.delete`, `project.manageMembers`, `project.viewBudget`
 - **Tasks**: `task.read`, `task.readOwn`, `task.create`, `task.update`, `task.delete`, `task.assign`, `task.comment`
+- **Activity Tracker**: `activity.logOwn`, `activity.readOwn`, `activity.readTeam`, `activity.readAll`, `activity.approve`, `activity.editAll`, `activity.export`, `activity.viewCost`
 - **Broadcast & Celebrations**: `announcement.create`, `announcement.read`
 - **Departments & Users**: `department.read`, `department.manage`, `user.manage`, `document.manage`, `dashboard.read`
-- **Roadmap Permissions**: `payroll.run`, `payroll.viewAll`, `recruitment.read`, `crm.viewAll`, `asset.read`, `travel.read`, `tracker.read`, `report.view`, `support.read`, `utility.read`, `finance.viewAll`
 
 ---
 
@@ -57,10 +92,10 @@ Default password for all seeded accounts: `ChangeMe@123`
 | **Super Admin** | `superadmin1@illusorydesignstudios.com` | Aarav Mohapatra (Founder & CEO) | Complete master access (`*`) |
 | **Super Admin** | `superadmin2@illusorydesignstudios.com` | Rohan Patnaik (Co-Founder & CTO) | Complete master access (`*`) |
 | **Super Admin** | `superadmin3@illusorydesignstudios.com` | Ananya Dash (Co-Founder & COO) | Complete master access (`*`) |
-| **HR Manager** | `hr@illusorydesignstudios.com` | Sunita Jena (Head of People) | Full HRMS, HR Ops, Approvals, Clients, Projects (no budget) |
-| **Project Manager** | `pm@illusorydesignstudios.com` | Bikash Panda (Technical Project Lead) | Project creation, member management, budget view, task delegation |
-| **Employee 1** | `employee1@illusorydesignstudios.com` | Debashis Tripathy (Senior UI/UX) | Own profile, check-in, assigned projects, my tasks |
-| **Employee 2..8** | `employee2..8@illusorydesignstudios.com` | Designers & Developers | Own self-service, check-in, assigned projects, my tasks |
+| **HR Manager** | `hr@illusorydesignstudios.com` | Sunita Jena (Head of People) | Full HRMS, HR Ops, Approvals, Clients, Projects, Activity Tracker |
+| **Project Manager** | `pm@illusorydesignstudios.com` | Bikash Panda (Technical Project Lead) | Project management, task delegation, team timesheet approvals |
+| **Employee 1** | `employee1@illusorydesignstudios.com` | Debashis Tripathy (Senior UI/UX) | Own profile, check-in, assigned projects, my tasks, time logging |
+| **Employee 2..8** | `employee2..8@illusorydesignstudios.com` | Designers & Developers | Own self-service, check-in, assigned projects, my tasks, time logging |
 
 ---
 
@@ -94,70 +129,17 @@ Contains:
 VITE_SHOW_QUICK_LOGIN=true
 ```
 
-### 3. Install Dependencies
+### 3. Run the Monorepo
 ```powershell
-# Server dependencies
-cd ../server
-npm install
-
-# Client dependencies
-cd ../client
-npm install
-```
-
-### 4. Run the Idempotent Seed Script
-```powershell
-cd ../server
-npm run seed
-```
-Safe to run multiple times. Automatically seeds:
-- 5 Roles (`super_admin`, `admin`, `hr`, `project_manager`, `employee`)
-- 7 Agency Departments (Design, Dev, Marketing, Sales, HR, Finance, Admin)
-- Default Shift (09:30 - 18:30 with 15-minute grace period)
-- 5 Leave Types & 16 Odisha declared holidays for 2026
-- 3 Clients (`Odisha Crafts & Tourism Corp`, `Kalinga Health Tech`, `Mayurbhanj Artisans Collective`)
-- 4 Projects (`PRJ-2026-001` through `PRJ-2026-004`) with team rosters, budgets in paise, and milestones
-- 25 Realistic Tasks across all 6 Kanban columns, with checklists, comments, `@mentions`, and overdue badges
-- Auto-recalculated project progress percentages
-
-### 5. Launch the Application
-```powershell
-# Terminal 1: Start Backend API (Port 5000)
+# In terminal 1 (Backend API):
 cd server
 npm run dev
 
-# Terminal 2: Start Frontend Web App (Port 5173)
+# In terminal 2 (Vite Frontend):
 cd client
 npm run dev
+
+# Run Seed Script (Idempotent):
+node server/src/seed/seed.js
 ```
-Open **`http://localhost:5173`** in your browser.
-
----
-
-## 🧪 Testing Checklist (Day 3)
-
-1. **Super Admin / Project Manager Testing**:
-   - Log in as `superadmin1@illusorydesignstudios.com` or `pm@illusorydesignstudios.com`.
-   - Open **Clients** (`/clients`): Click on any client to view their contracted projects in the detail drawer. Click "+ Add New Client" to register a client.
-   - Open **Projects** (`/projects`): Toggle between Grid and Table views. Notice status pill filters and progress bars.
-   - Click on **`PRJ-2026-001`** (Odisha Tourism Experience Portal):
-     - **Board Tab**: Drag cards between columns (e.g. from `Todo` to `In Progress` or `Done`). Notice progress percentage auto-updates.
-     - Click any task card to open the **Task Detail Drawer**: Add a step to the checklist, toggle checkmarks, or post a comment with `@mention`.
-     - **Team Tab**: Add or remove project members.
-     - **Milestones Tab**: Check off milestone deliverables.
-     - **Files Tab**: Upload project attachments.
-     - **Overview Tab**: Verify that the project budget (`₹7,50,000`) and hourly billing rates are visible.
-
-2. **Employee Security & Budget Masking Testing**:
-   - Log in as `employee1@illusorydesignstudios.com` (Debashis Tripathy).
-   - In the sidebar, notice **Projects** and **Tasks** are accessible, while restricted administrative modules are hidden.
-   - Open **`PRJ-2026-001`**:
-     - Check the **Overview Tab**: Verify that the **Budget & Financials section is hidden**.
-     - Verify on the API level: inspecting network response shows `budget` and `billingRatePerHour` are completely stripped from the response payload.
-   - Open **`PRJ-2026-003`** (which Debashis is NOT a member of):
-     - Attempting to load `/api/v1/projects/<PRJ-2026-003-ID>` returns `403 Forbidden` ("You do not have access to view this project").
-   - Open **My Tasks** (`/tasks`):
-     - Test the `Today`, `This Week`, `Overdue`, and `All` tabs.
-     - One-click mark a task as `Done` and see KPI counters update instantly.
-   - Open **Home** (`/`):
-     - Inspect the "My Open Tasks" and "My Active Projects" dashboard widgets.
+Open [http://localhost:5173](http://localhost:5173) in your browser.

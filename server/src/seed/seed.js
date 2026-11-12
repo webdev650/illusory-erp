@@ -18,6 +18,14 @@ import Project from '../models/Project.js';
 import Task from '../models/Task.js';
 import TaskComment from '../models/TaskComment.js';
 import TaskActivity from '../models/TaskActivity.js';
+import TimeEntry from '../models/TimeEntry.js';
+import Timesheet from '../models/Timesheet.js';
+import ActiveTimer from '../models/ActiveTimer.js';
+import {
+  toKolkataDateOnly,
+  getWeekBounds,
+  recalculateTaskAndProjectTime,
+} from '../services/activity.service.js';
 import { ROLE_PERMISSIONS } from '../config/modules.js';
 
 dotenv.config();
@@ -1401,8 +1409,254 @@ const seedDatabase = async () => {
       }
     }
 
+    // 17. Seed Activity Tracker: TimeEntries, Timesheets, and Active Timers (Day 4)
+    console.log('\n--- 17. Syncing Activity Tracker Data (Day 4) ---');
+    const todayDate = toKolkataDateOnly(new Date());
+    const currentWeek = getWeekBounds(todayDate);
+
+    // Calculate previous week bounds
+    const prevWeekMonday = new Date(currentWeek.weekStart);
+    prevWeekMonday.setDate(prevWeekMonday.getDate() - 7);
+    const prevWeek = getWeekBounds(prevWeekMonday);
+
+    // 17.1 Seed Previous Week Time Entries for Employee 1 (Submitted Timesheet)
+    const p1Id = projectsMap['PRJ-2026-001'];
+    const p2Id = projectsMap['PRJ-2026-002'];
+    const t1Id = tasksMap['TSK-0001']?._id;
+    const t2Id = tasksMap['TSK-0002']?._id;
+    const t3Id = tasksMap['TSK-0003']?._id;
+
+    if (emp1) {
+      let prevWeekTotalMin = 0;
+      let prevWeekBillableMin = 0;
+
+      // 5 Days of work (Mon-Fri) in previous week
+      for (let dayIdx = 0; dayIdx < 5; dayIdx++) {
+        const entryDate = new Date(prevWeek.weekStart);
+        entryDate.setDate(entryDate.getDate() + dayIdx);
+
+        // Morning entry: Design / Development work
+        const morningDesc = `Client design system components & layout for screen set ${dayIdx + 1}`;
+        await TimeEntry.findOneAndUpdate(
+          { employee: emp1._id, date: entryDate, description: morningDesc },
+          {
+            $set: {
+              employee: emp1._id,
+              date: entryDate,
+              project: p1Id,
+              task: t1Id,
+              category: 'project_work',
+              description: morningDesc,
+              durationMinutes: 270, // 4.5 hours
+              isBillable: true,
+              source: 'manual',
+              status: 'submitted',
+              isDeleted: false,
+            },
+          },
+          { upsert: true }
+        );
+        prevWeekTotalMin += 270;
+        prevWeekBillableMin += 270;
+
+        // Afternoon entry: Internal sprint sync & code review
+        const afternoonDesc = `Studio sprint sync and code reviews (Day ${dayIdx + 1})`;
+        await TimeEntry.findOneAndUpdate(
+          { employee: emp1._id, date: entryDate, description: afternoonDesc },
+          {
+            $set: {
+              employee: emp1._id,
+              date: entryDate,
+              project: p1Id,
+              task: t2Id,
+              category: dayIdx % 2 === 0 ? 'meeting' : 'review',
+              description: afternoonDesc,
+              durationMinutes: 210, // 3.5 hours
+              isBillable: true,
+              source: 'manual',
+              status: 'submitted',
+              isDeleted: false,
+            },
+          },
+          { upsert: true }
+        );
+        prevWeekTotalMin += 210;
+        prevWeekBillableMin += 210;
+      }
+
+      // Upsert Previous Week Timesheet for Employee 1 (Submitted)
+      let tsEmp1 = await Timesheet.findOne({ employee: emp1._id, weekStart: prevWeek.weekStart });
+      if (!tsEmp1) {
+        tsEmp1 = new Timesheet({
+          employee: emp1._id,
+          weekStart: prevWeek.weekStart,
+          weekEnd: prevWeek.weekEnd,
+        });
+      }
+      tsEmp1.totalMinutes = prevWeekTotalMin;
+      tsEmp1.billableMinutes = prevWeekBillableMin;
+      tsEmp1.status = 'submitted';
+      tsEmp1.submittedAt = new Date(prevWeek.weekEnd);
+      await tsEmp1.save();
+
+      // Create or update ApprovalRequest for Employee 1's timesheet
+      let approvalReq = await ApprovalRequest.findOne({
+        type: 'timesheet',
+        referenceId: tsEmp1._id,
+      });
+
+      if (!approvalReq) {
+        approvalReq = await ApprovalRequest.create({
+          type: 'timesheet',
+          referenceModel: 'Timesheet',
+          referenceId: tsEmp1._id,
+          requestedBy: emp1._id,
+          title: `Timesheet (40.0 hrs) - Week of ${prevWeek.weekStart.toLocaleDateString('en-IN')}`,
+          metadata: {
+            totalHours: '40.0',
+            expectedHours: 40,
+            isUnderExpected: false,
+            billableHours: '40.0',
+            weekStart: prevWeek.weekStart,
+            weekEnd: prevWeek.weekEnd,
+          },
+          steps: [
+            {
+              order: 1,
+              title: 'Manager Timesheet Review',
+              approverEmployee: pmEmp?._id || ceoEmp?._id,
+              status: 'pending',
+            },
+          ],
+          currentStep: 1,
+          status: 'pending',
+        });
+      }
+
+      tsEmp1.approvalRequest = approvalReq._id;
+      await tsEmp1.save();
+
+      // Attach timesheet reference to previous week's entries
+      await TimeEntry.updateMany(
+        { employee: emp1._id, date: { $gte: prevWeek.weekStart, $lte: prevWeek.weekEnd } },
+        { $set: { timesheet: tsEmp1._id, status: 'submitted' } }
+      );
+
+      console.log(`  ✓ Employee 1: Seeded 40h submitted timesheet with pending approval request.`);
+
+      // 17.2 Seed Current Week Time Entries for Employee 1 (Draft Entries for My Time page)
+      const currentWeekDaysToSeed = Math.min(4, new Date().getDay() || 4); // Mon to today
+      for (let dayIdx = 0; dayIdx < currentWeekDaysToSeed; dayIdx++) {
+        const entryDate = new Date(currentWeek.weekStart);
+        entryDate.setDate(entryDate.getDate() + dayIdx);
+
+        const currentDesc = `Current sprint UX layout and Mapbox navigation flow (Step ${dayIdx + 1})`;
+        await TimeEntry.findOneAndUpdate(
+          { employee: emp1._id, date: entryDate, description: currentDesc },
+          {
+            $set: {
+              employee: emp1._id,
+              date: entryDate,
+              project: p1Id,
+              task: t3Id,
+              category: 'project_work',
+              description: currentDesc,
+              durationMinutes: 450, // 7.5 hours
+              isBillable: true,
+              source: dayIdx === 0 ? 'timer' : 'manual',
+              status: 'draft',
+              isDeleted: false,
+            },
+          },
+          { upsert: true }
+        );
+      }
+      console.log(`  ✓ Employee 1: Seeded ${currentWeekDaysToSeed} days of draft entries for current week.`);
+    }
+
+    // 17.3 Seed Approved Timesheet for Employee 2 (Previous Week)
+    if (emp2) {
+      let emp2TotalMin = 0;
+      for (let dayIdx = 0; dayIdx < 5; dayIdx++) {
+        const entryDate = new Date(prevWeek.weekStart);
+        entryDate.setDate(entryDate.getDate() + dayIdx);
+
+        const desc = `Backend API routing and microservices schema (Day ${dayIdx + 1})`;
+        await TimeEntry.findOneAndUpdate(
+          { employee: emp2._id, date: entryDate, description: desc },
+          {
+            $set: {
+              employee: emp2._id,
+              date: entryDate,
+              project: p2Id,
+              task: tasksMap['TSK-0009']?._id || null,
+              category: 'project_work',
+              description: desc,
+              durationMinutes: 480, // 8.0 hours
+              isBillable: true,
+              source: 'manual',
+              status: 'approved',
+              isDeleted: false,
+            },
+          },
+          { upsert: true }
+        );
+        emp2TotalMin += 480;
+      }
+
+      let tsEmp2 = await Timesheet.findOne({ employee: emp2._id, weekStart: prevWeek.weekStart });
+      if (!tsEmp2) {
+        tsEmp2 = new Timesheet({
+          employee: emp2._id,
+          weekStart: prevWeek.weekStart,
+          weekEnd: prevWeek.weekEnd,
+        });
+      }
+      tsEmp2.totalMinutes = emp2TotalMin;
+      tsEmp2.billableMinutes = emp2TotalMin;
+      tsEmp2.status = 'approved';
+      tsEmp2.submittedAt = new Date(prevWeek.weekEnd);
+      tsEmp2.reviewedBy = pmEmp?._id || ceoEmp?._id;
+      tsEmp2.reviewedAt = new Date();
+      tsEmp2.reviewComment = 'Great execution on the backend deliverables.';
+      await tsEmp2.save();
+
+      await TimeEntry.updateMany(
+        { employee: emp2._id, date: { $gte: prevWeek.weekStart, $lte: prevWeek.weekEnd } },
+        { $set: { timesheet: tsEmp2._id, status: 'approved' } }
+      );
+
+      console.log(`  ✓ Employee 2: Seeded 40h approved timesheet with manager review.`);
+    }
+
+    // 17.4 Seed an Active Running Timer for Employee 4
+    if (emp4) {
+      await ActiveTimer.findOneAndUpdate(
+        { employee: emp4._id },
+        {
+          $set: {
+            employee: emp4._id,
+            project: p2Id,
+            task: tasksMap['TSK-0011']?._id || null,
+            category: 'project_work',
+            description: 'Fixing camera permission callback on Android SDK 34',
+            startedAt: new Date(Date.now() - 45 * 60 * 1000), // Running for 45 minutes
+          },
+        },
+        { upsert: true }
+      );
+      console.log(`  ✓ Employee 4: Active running timer seeded.`);
+    }
+
+    // 17.5 Recalculate Task & Project loggedHours and costToDate
+    console.log('\n--- 18. Recalculating Task & Project Burn Rates ---');
+    for (const t of Object.values(tasksMap)) {
+      await recalculateTaskAndProjectTime(t._id, t.project);
+    }
+    console.log(`  ✓ Completed recalculation of logged hours and costToDate across all projects.`);
+
     console.log('\n================================================================');
-    console.log('🎉 DAY 3 SEED & RECONCILIATION COMPLETED SUCCESSFULLY!');
+    console.log('🎉 DAY 4 SEED & RECONCILIATION COMPLETED SUCCESSFULLY!');
     console.log('================================================================');
     console.log('Default Password for all accounts: ChangeMe@123');
     console.log('  👑 Super Admins   : superadmin1..3@illusorydesignstudios.com');

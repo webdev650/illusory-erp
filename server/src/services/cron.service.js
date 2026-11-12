@@ -3,11 +3,13 @@ import Attendance from '../models/Attendance.js';
 import Employee from '../models/Employee.js';
 import Holiday from '../models/Holiday.js';
 import Task from '../models/Task.js';
+import Timesheet from '../models/Timesheet.js';
 import { normalizeToKolkataMidnight } from '../utils/dateUtils.js';
+import { getWeekBounds } from './activity.service.js';
 import { notifyEmployee } from './notification.service.js';
 
 export const initCronJobs = () => {
-  // Run daily at 23:59 Asia/Kolkata time
+  // 1. Run daily at 23:59 Asia/Kolkata time for attendance reconciliation
   cron.schedule(
     '59 23 * * *',
     async () => {
@@ -126,6 +128,74 @@ export const initCronJobs = () => {
     }
   );
 
-  console.log('🕒 Node-Cron registered: Attendance (23:59 IST) & Task Reminders (09:00 IST)');
+  // 3. Run weekly on Friday at 17:00 (5:00 PM) Asia/Kolkata time: Timesheet submission reminder
+  cron.schedule(
+    '0 17 * * 5',
+    async () => {
+      console.log('⏰ [Cron] Running Friday 5:00 PM timesheet submission reminder...');
+      try {
+        const { weekStart } = getWeekBounds();
+        const activeEmployees = await Employee.find({ status: 'active', isDeleted: false }).select('_id');
+
+        const submitted = await Timesheet.find({
+          weekStart,
+          status: { $in: ['submitted', 'approved'] },
+        }).select('employee');
+        const submittedSet = new Set(submitted.map((t) => t.employee.toString()));
+
+        let reminderCount = 0;
+        for (const emp of activeEmployees) {
+          if (!submittedSet.has(emp._id.toString())) {
+            await notifyEmployee(emp._id, {
+              title: 'Weekly Timesheet Reminder',
+              message: 'Friday check-in: Please review your daily time logs and submit your weekly timesheet.',
+              link: '/tracker',
+              type: 'timesheet',
+            });
+            reminderCount++;
+          }
+        }
+        console.log(`✅ [Cron] Timesheet submission reminders dispatched to ${reminderCount} employees.`);
+      } catch (err) {
+        console.error('❌ [Cron Error] Friday timesheet reminder failed:', err.message);
+      }
+    },
+    {
+      timezone: 'Asia/Kolkata',
+    }
+  );
+
+  // 4. Run weekly on Monday at 10:00 AM Asia/Kolkata time: Pending timesheets review reminder for managers
+  cron.schedule(
+    '0 10 * * 1',
+    async () => {
+      console.log('⏰ [Cron] Running Monday 10:00 AM pending timesheets approver reminder...');
+      try {
+        const pendingTimesheets = await Timesheet.find({ status: 'submitted' })
+          .populate('employee', 'personal.firstName personal.lastName employment.reportingManager')
+          .lean();
+
+        for (const ts of pendingTimesheets) {
+          const managerId = ts.employee?.employment?.reportingManager;
+          if (managerId) {
+            await notifyEmployee(managerId, {
+              title: `Pending Timesheet Approval: ${ts.employee?.personal?.firstName}`,
+              message: `Reminder: Timesheet for ${ts.employee?.personal?.firstName} is pending your weekly review.`,
+              link: '/tracker?tab=approvals',
+              type: 'approval',
+            });
+          }
+        }
+        console.log(`✅ [Cron] Approver reminders sent for ${pendingTimesheets.length} pending timesheets.`);
+      } catch (err) {
+        console.error('❌ [Cron Error] Monday approver reminder failed:', err.message);
+      }
+    },
+    {
+      timezone: 'Asia/Kolkata',
+    }
+  );
+
+  console.log('🕒 Node-Cron registered: Attendance (23:59 IST), Tasks (09:00 IST), Timesheet Reminders (Fri 17:00 & Mon 10:00 IST)');
 };
 

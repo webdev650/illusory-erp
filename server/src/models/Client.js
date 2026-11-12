@@ -73,3 +73,4 @@ const clientSchema = new mongoose.Schema(
 clientSchema.index({ name: 'text', companyName: 'text', email: 'text' });
 
 export default mongoose.model('Client', clientSchema);
+

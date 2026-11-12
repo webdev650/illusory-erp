@@ -36,3 +36,4 @@ const taskActivitySchema = new mongoose.Schema(
 );
 
 export default mongoose.model('TaskActivity', taskActivitySchema);
+

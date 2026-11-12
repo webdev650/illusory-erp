@@ -3,12 +3,18 @@ import { LeaveBalance } from '../models/LeaveBalance.js';
 import { Attendance } from '../models/Attendance.js';
 import { AttendanceRegularization } from '../models/AttendanceRegularization.js';
 import { Holiday } from '../models/Holiday.js';
+import Timesheet from '../models/Timesheet.js';
+import TimeEntry from '../models/TimeEntry.js';
+import { recalculateTaskAndProjectTime } from './activity.service.js';
+import { notifyEmployee } from './notification.service.js';
 
 export const handleWorkflowCompletion = async (approval, finalStatus, actedByUser) => {
   if (approval.type === 'leave') {
     await handleLeaveCompletion(approval, finalStatus, actedByUser);
   } else if (approval.type === 'regularization') {
     await handleRegularizationCompletion(approval, finalStatus, actedByUser);
+  } else if (approval.type === 'timesheet') {
+    await handleTimesheetCompletion(approval, finalStatus, actedByUser);
   }
 };
 
@@ -96,5 +102,53 @@ const handleRegularizationCompletion = async (approval, finalStatus, actedByUser
       await attendance.save();
     }
   }
+};
+
+const handleTimesheetCompletion = async (approval, finalStatus, actedByUser) => {
+  const timesheet = await Timesheet.findById(approval.referenceId);
+  if (!timesheet) return;
+
+  timesheet.status = finalStatus;
+  timesheet.reviewedBy = actedByUser?.employee || null;
+  timesheet.reviewedAt = new Date();
+
+  // Pick reviewer comment from last acted step
+  const lastStep = approval.steps?.find((s) => s.actedBy);
+  if (lastStep?.comment) {
+    timesheet.reviewComment = lastStep.comment;
+  }
+
+  await timesheet.save();
+
+  // Update associated TimeEntry records
+  const entryStatus = finalStatus === 'approved' ? 'approved' : 'rejected';
+  await TimeEntry.updateMany(
+    { timesheet: timesheet._id, isDeleted: false },
+    { status: entryStatus }
+  );
+
+  // Recalculate tasks and projects
+  const entries = await TimeEntry.find({ timesheet: timesheet._id, isDeleted: false }).select('task project');
+  const taskIds = new Set(entries.map((e) => e.task?.toString()).filter(Boolean));
+  const projectIds = new Set(entries.map((e) => e.project?.toString()).filter(Boolean));
+
+  for (const tId of taskIds) {
+    await recalculateTaskAndProjectTime(tId, null);
+  }
+  for (const pId of projectIds) {
+    await recalculateTaskAndProjectTime(null, pId);
+  }
+
+  // Notify the employee
+  const weekStartStr = new Date(timesheet.weekStart).toLocaleDateString('en-IN');
+  await notifyEmployee(timesheet.employee, {
+    title: `Timesheet ${finalStatus.toUpperCase()}: Week of ${weekStartStr}`,
+    message:
+      finalStatus === 'approved'
+        ? `Your weekly timesheet (${(timesheet.totalMinutes / 60).toFixed(1)} hrs) was approved.`
+        : `Your weekly timesheet was rejected. Reviewer notes: "${timesheet.reviewComment || 'Please revise entries and re-submit'}"`,
+    link: `/tracker`,
+    type: 'timesheet',
+  });
 };
 
