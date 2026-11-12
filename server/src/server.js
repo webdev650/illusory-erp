@@ -1,14 +1,25 @@
-// src/server.js
-// Entry point. Connects to the database then starts listening for requests.
+import dotenv from 'dotenv';
 import { connectDB } from './config/db.js';
 import app from './app.js';
-import { env } from './config/env.js';
 
-const start = async () => {
-  await connectDB();
-  app.listen(env.port, () => {
-    console.log(`🚀  Illusory ERP server running on port ${env.port} in ${env.nodeEnv} mode`);
-  });
+dotenv.config();
+
+const PORT = process.env.PORT || 5000;
+
+const startServer = async () => {
+  try {
+    await connectDB();
+    app.listen(PORT, () => {
+      console.log(`\n======================================================`);
+      console.log(`🚀 Illusory ERP Backend Server running on port ${PORT}`);
+      console.log(`📡 API Base URL: http://localhost:${PORT}/api/v1`);
+      console.log(`🌐 Allowed Client URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}`);
+      console.log(`======================================================\n`);
+    });
+  } catch (error) {
+    console.error('Fatal Server Startup Error:', error);
+    process.exit(1);
+  }
 };
 
-start();
+startServer();

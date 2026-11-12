@@ -1,38 +1,34 @@
-// src/middleware/upload.js
-// Configures multer to upload files directly to Cloudinary.
-// Files are limited to 5 MB; only JPG, PNG, and PDF are accepted.
-import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import multer from 'multer';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import cloudinary from '../config/cloudinary.js';
 import { AppError } from './error.js';
-import '../config/cloudinary.js'; // Make sure cloudinary is configured
-
-const allowedMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'];
 
 const storage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
-    const folder = file.mimetype === 'application/pdf'
-      ? 'illusory-erp/documents'
-      : 'illusory-erp/photos';
+    const isDoc = file.mimetype === 'application/pdf';
     return {
-      folder,
+      folder: isDoc ? 'illusory-erp/documents' : 'illusory-erp/photos',
       allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
-      resource_type: file.mimetype === 'application/pdf' ? 'raw' : 'image',
+      resource_type: isDoc ? 'raw' : 'image',
+      public_id: `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9]/g, '_')}`,
     };
   },
 });
 
 const fileFilter = (req, file, cb) => {
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
   if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new AppError('Only JPG, PNG, and PDF files are allowed', 400), false);
+    cb(new AppError('Invalid file type. Only JPG, PNG, and PDF files are allowed.', 400), false);
   }
 };
 
 export const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5 MB max
+  },
 });

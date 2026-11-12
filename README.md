@@ -1,161 +1,173 @@
-# Illusory ERP — API Reference (Day 1)
+# ✨ Illusory ERP — Day 1 Monorepo
 
-Built for **Illusory Design Studios Pvt. Ltd.**, Bhubaneswar, India.
+Custom Enterprise Resource Planning & HRMS platform built for **Illusory Design Studios Pvt. Ltd.** (Bhubaneswar, Odisha, India).
 
-## Quick Start
+---
 
-```bash
-# 1. Copy the example env file and fill in your values
-cp server/.env.example server/.env
+## 🏗️ Architecture & Tech Stack
 
-# 2. Install dependencies
-cd server && npm install
+- **Backend**: Node.js + Express.js (ES Modules, REST API at `/api/v1`)
+- **Database**: MongoDB Atlas via Mongoose
+- **Authentication**: JWT with `httpOnly` secure cookies & bcrypt password hashing
+- **Authorization**: Dynamic Role-Based Access Control (RBAC) with permission keys (`*`, `employee.read`, `employee.create`, `employee.update`, `employee.delete`, `employee.readSalary`, `employee.readStatutory`, `department.manage`, `user.manage`, `dashboard.read`)
+- **Security**: Helmet, CORS with credentials, Express rate-limit, sensitive field masking
+- **Storage**: Cloudinary (Multer + Cloudinary SDK for photos and PDF/JPG documents up to 5 MB)
+- **Frontend**: React 18 + Vite + Tailwind CSS + Lucide Icons + React Router + Axios
 
-# 3. Seed the CEO account (run once)
-npm run seed
+---
 
-# 4. Start the dev server
-npm run dev
+## 📁 Monorepo Structure
+
+```
+illusory-erp/
+├── server/
+│   ├── src/
+│   │   ├── config/             # db.js, cloudinary.js
+│   │   ├── models/             # Role, User, Department, Employee, AuditLog
+│   │   ├── middleware/         # requireAuth, requirePermission, errorHandler, upload, audit
+│   │   ├── controllers/        # auth, employee, department, role, user, dashboard
+│   │   ├── routes/             # index.js (/api/v1/*)
+│   │   ├── utils/              # apiResponse, jwt, masking
+│   │   ├── seed/               # seed.js (3 Super Admins, 1 HR, 8 Employees)
+│   │   ├── app.js              # Express app wiring
+│   │   └── server.js           # Server entry point
+│   ├── .env.example
+│   └── package.json
+├── client/                     # Vite + React + Tailwind CSS
+│   ├── src/
+│   │   ├── api/axios.js        # Axios instance with credentials
+│   │   ├── context/            # AuthContext (user, role, permissions, login/logout)
+│   │   ├── components/         # Layout, Sidebar (16 modules), Navbar, ProtectedRoute
+│   │   └── pages/              # Login, ChangePassword, Home, HRMS, EmployeeDetail, MyProfile, Configurations, ComingSoon
+│   ├── vite.config.js          # Proxy setup to backend (/api -> localhost:5000)
+│   └── package.json
+└── README.md
 ```
 
-The server starts on `http://localhost:5000`.
+---
 
-## Environment Variables
+## 🚀 Step-by-Step Setup Guide for Beginners
+
+### Step 1: Clone or Navigate to Project
+Open your terminal (PowerShell, Command Prompt, or VS Code terminal):
+```powershell
+cd "d:\IDS COMPANY\illusory-erp"
+```
+
+---
+
+### Step 2: Configure Backend Environment Variables (`.env`)
+
+1. Go to the `server` folder:
+   ```powershell
+   cd server
+   copy .env.example .env
+   ```
+2. Open `server/.env` in your editor and fill in your values:
 
 | Variable | Description | Where to Get It |
 |---|---|---|
-| `MONGODB_URI` | MongoDB Atlas connection string | Atlas Dashboard → Connect → Drivers |
-| `JWT_ACCESS_SECRET` | Min 32-char random string | Use: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `JWT_REFRESH_SECRET` | Min 32-char random string | Same as above |
-| `FIELD_ENCRYPTION_KEY` | 32-char key for AES encryption | Same as above |
-| `CLOUDINARY_CLOUD_NAME` | Your Cloudinary cloud name | cloudinary.com → Dashboard |
-| `CLOUDINARY_API_KEY` | Cloudinary API key | cloudinary.com → Dashboard → API Keys |
-| `CLOUDINARY_API_SECRET` | Cloudinary API secret | cloudinary.com → Dashboard → API Keys |
-| `CEO_NAME` | Full name of the CEO account | Your name |
-| `CEO_EMAIL` | CEO login email | Your email |
-| `CEO_PASSWORD` | CEO initial password (change after first login!) | Pick a strong password |
+| `PORT` | Backend port (default `5000`) | Leave as `5000` |
+| `MONGO_URI` | MongoDB Atlas connection string | [cloud.mongodb.com](https://cloud.mongodb.com) &rarr; Database &rarr; Connect &rarr; Drivers |
+| `JWT_SECRET` | Secret key for signing tokens | Any long random string (e.g. 32+ characters) |
+| `JWT_EXPIRES_IN` | Token lifespan | `7d` |
+| `CLIENT_URL` | Allowed frontend origin | `http://localhost:5173` |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name | [cloudinary.com](https://cloudinary.com) &rarr; Dashboard |
+| `CLOUDINARY_API_KEY` | Cloudinary API Key | Cloudinary Dashboard |
+| `CLOUDINARY_API_SECRET` | Cloudinary API Secret | Cloudinary Dashboard |
 
-## Routes
+---
 
-### Health
-| Method | URL | Auth | Description |
-|---|---|---|---|
-| GET | `/api/health` | None | Check if server is running |
+### Step 3: Install Dependencies
 
-### Auth
-| Method | URL | Auth | Description |
-|---|---|---|---|
-| POST | `/api/auth/register` | None | Register first user (becomes SUPER_ADMIN) |
-| POST | `/api/auth/login` | None | Login, get access token + refresh cookie |
-| POST | `/api/auth/refresh` | Cookie | Get a new access token |
-| POST | `/api/auth/logout` | Cookie | Logout and invalidate refresh token |
-| GET | `/api/auth/me` | Bearer | Get current user profile |
+1. **Install backend dependencies**:
+   ```powershell
+   cd "d:\IDS COMPANY\illusory-erp\server"
+   npm install
+   ```
 
-### HRMS — Employees
-| Method | URL | Auth | Description |
-|---|---|---|---|
-| GET | `/api/hrms/employees` | Bearer | List all employees (paginated, searchable) |
-| POST | `/api/hrms/employees` | Bearer + SUPER_ADMIN/HR_ADMIN | Create employee |
-| GET | `/api/hrms/employees/:id` | Bearer | Get one employee |
-| PUT | `/api/hrms/employees/:id` | Bearer + SUPER_ADMIN/HR_ADMIN | Update employee |
-| DELETE | `/api/hrms/employees/:id` | Bearer + SUPER_ADMIN | Soft-delete employee |
-| POST | `/api/hrms/employees/:id/photo` | Bearer + SUPER_ADMIN/HR_ADMIN | Upload profile photo |
-| POST | `/api/hrms/employees/:id/documents` | Bearer + SUPER_ADMIN/HR_ADMIN | Upload document |
+2. **Install frontend dependencies**:
+   ```powershell
+   cd "d:\IDS COMPANY\illusory-erp\client"
+   npm install
+   ```
 
-## Example Requests (copy-paste into Thunder Client or curl)
+---
 
-### 1. Health check
-```bash
-curl http://localhost:5000/api/health
+### Step 4: Seed the Database
+
+Run the seed script from the `server` folder:
+```powershell
+cd "d:\IDS COMPANY\illusory-erp\server"
+npm run seed
 ```
 
-### 2. Register first user (becomes SUPER_ADMIN)
-```bash
-curl -X POST http://localhost:5000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Test Admin","email":"test@example.com","password":"Test@1234"}'
+This will automatically create:
+- **4 System Roles**: `super_admin`, `admin`, `hr`, `employee`
+- **7 Agency Departments**: Design (`DES`), Development (`DEV`), Marketing (`MKT`), Sales (`SLS`), HR (`HRD`), Finance (`FIN`), Admin (`ADM`)
+- **Exactly 3 Super Admins, 1 HR Manager, and 8 Employees** with linked profile records!
+
+---
+
+### Step 5: Start Backend and Frontend Servers
+
+Open two terminal windows:
+
+**Terminal 1 (Backend Server):**
+```powershell
+cd "d:\IDS COMPANY\illusory-erp\server"
+npm run dev
 ```
+*(Runs on `http://localhost:5000` with hot-reloading)*
 
-### 3. Login
-```bash
-curl -X POST http://localhost:5000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -c cookies.txt \
-  -d '{"email":"ceo@illusorydesignstudios.com","password":"ChangeMe@123"}'
+**Terminal 2 (Frontend Client):**
+```powershell
+cd "d:\IDS COMPANY\illusory-erp\client"
+npm run dev
 ```
+*(Runs on `http://localhost:5173`)*
 
-### 4. Get current user (replace TOKEN with the access token from login)
-```bash
-curl http://localhost:5000/api/auth/me \
-  -H "Authorization: Bearer TOKEN"
-```
+Now open your browser and go to:
+👉 **`http://localhost:5173`**
 
-### 5. Create employee
-```bash
-curl -X POST http://localhost:5000/api/hrms/employees \
-  -H "Authorization: Bearer TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "personal": {
-      "fullName": "Priya Sharma",
-      "gender": "FEMALE",
-      "dob": "1995-06-15"
-    },
-    "contact": {
-      "officialEmail": "priya@illusorydesignstudios.com",
-      "personalMobile": "9876543210"
-    },
-    "employment": {
-      "joiningDate": "2024-01-15",
-      "department": "Design",
-      "designation": "UI/UX Designer",
-      "employeeType": "FULL_TIME"
-    }
-  }'
-```
+---
 
-### 6. List employees with search
-```bash
-curl "http://localhost:5000/api/hrms/employees?search=priya&page=1&limit=10" \
-  -H "Authorization: Bearer TOKEN"
-```
+## 👥 Seed Accounts for Testing
 
-### 7. Refresh token (uses the httpOnly cookie)
-```bash
-curl -X POST http://localhost:5000/api/auth/refresh \
-  -b cookies.txt
-```
+All seeded accounts have the initial temporary password:
+🔑 **`ChangeMe@123`**
+*(The system automatically triggers a password update on first login if `mustChangePassword` is active).*
 
-## Roles
+### 👑 Super Admin Accounts (Full System & RBAC Access)
+- `superadmin1@illusorydesignstudios.com` (Aarav Mohapatra — CEO)
+- `superadmin2@illusorydesignstudios.com` (Rohan Patnaik — CTO)
+- `superadmin3@illusorydesignstudios.com` (Ananya Dash — COO)
 
-| Role | Permissions |
-|---|---|
-| `SUPER_ADMIN` | Full access to everything, including delete and salary/statutory data |
-| `HR_ADMIN` | Create/edit employees, view salary/statutory data |
-| `FINANCE` | View salary/statutory data, cannot create/edit employees |
-| `MANAGER` | View team employees, cannot see salary/statutory |
-| `SALES` | View own profile only |
-| `EMPLOYEE` | View own profile only, no salary/statutory of others |
+### 📋 HR Manager Account (Employee Master & Onboarding)
+- `hr@illusorydesignstudios.com` (Sunita Jena — Head of People)
 
-## Project Structure
+### 💼 Employee Accounts (Self-Service Profile)
+- `employee1@illusorydesignstudios.com` (Debashis Tripathy — Senior Designer)
+- `employee2@illusorydesignstudios.com` (Priya Mishra — Brand Strategist)
+- `employee3@illusorydesignstudios.com` (Subham Sahoo — Full Stack Engineer)
+- `employee4@illusorydesignstudios.com` (Ipsita Rout — Frontend Developer)
+- `employee5@illusorydesignstudios.com` (Abhishek Nayak — Growth Marketer)
+- `employee6@illusorydesignstudios.com` (Sweta Pradhan — Sales Executive)
+- `employee7@illusorydesignstudios.com` (Manoj Panda — Financial Analyst)
+- `employee8@illusorydesignstudios.com` (Pooja Behera — Operations Specialist)
 
-```
-server/
-  src/
-    config/        # db.js, cloudinary.js, env.js
-    middleware/    # auth.js, role.js, error.js, upload.js, audit.js
-    modules/
-      auth/        # User model, auth service/controller/routes/validator
-      users/       # Users routes (placeholder, expand later)
-      hrms/        # Employee model, AuditLog model, HRMS service/controller/routes
-    utils/         # apiResponse.js, encrypt.js
-    scripts/       # seed.js
-    app.js
-    server.js
-  tests/
-    auth.test.js
-  .env.example
-  .gitignore
-  package.json
-  README.md
-```
+---
+
+## 🧪 Testing Role Boundaries
+
+1. **Login as Super Admin (`superadmin1@...`)**:
+   - Access **Configurations** (`/configurations`): manage users, view dynamic role permissions matrix, add departments.
+   - Access **HRMS** (`/hrms`): full search, filter, Add Employee multi-step wizard, soft delete, and unmasked salary data.
+2. **Login as HR (`hr@...`)**:
+   - Access **HRMS**: view/edit all employees, onboard new employees, transition statuses, upload Cloudinary documents.
+   - Cannot access administrative user password resets or demote Super Admins.
+3. **Login as Employee (`employee1@...`)**:
+   - Only sees **Home** and **My Profile** (`/my-profile`).
+   - Can edit personal mobile, residential address, emergency contact, and profile avatar.
+   - Attempting to access `/api/v1/employees` or other profiles directly returns `403 Forbidden`.
+   - Salary and statutory data are strictly masked/hidden.
