@@ -1,0 +1,12 @@
+// src/config/cloudinary.js
+// Configures the Cloudinary SDK using our env values.
+import { v2 as cloudinary } from 'cloudinary';
+import { env } from './env.js';
+
+cloudinary.config({
+  cloud_name: env.cloudinary.cloudName,
+  api_key: env.cloudinary.apiKey,
+  api_secret: env.cloudinary.apiSecret,
+});
+
+export default cloudinary;

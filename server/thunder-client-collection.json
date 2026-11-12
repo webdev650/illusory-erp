@@ -1,0 +1,184 @@
+{
+  "clientName": "Thunder Client",
+  "collectionName": "Illusory ERP API",
+  "collectionId": "illusory-erp-v1",
+  "dateExported": "2026-11-12",
+  "version": "1.1",
+  "folders": [
+    { "id": "f-health", "name": "Health", "containerId": "" },
+    { "id": "f-auth", "name": "Auth", "containerId": "" },
+    { "id": "f-hrms", "name": "HRMS - Employees", "containerId": "" }
+  ],
+  "requests": [
+    {
+      "id": "r-health-1",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-health",
+      "name": "Health Check",
+      "url": "{{baseUrl}}/api/health",
+      "method": "GET",
+      "headers": [],
+      "params": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "r-auth-1",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-auth",
+      "name": "Register",
+      "url": "{{baseUrl}}/api/auth/register",
+      "method": "POST",
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {
+        "type": "json",
+        "raw": "{\"name\":\"Test Admin\",\"email\":\"admin@test.com\",\"password\":\"Test@1234\"}"
+      }
+    },
+    {
+      "id": "r-auth-2",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-auth",
+      "name": "Login",
+      "url": "{{baseUrl}}/api/auth/login",
+      "method": "POST",
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {
+        "type": "json",
+        "raw": "{\"email\":\"ceo@illusorydesignstudios.com\",\"password\":\"ChangeMe@123\"}"
+      }
+    },
+    {
+      "id": "r-auth-3",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-auth",
+      "name": "Get Me",
+      "url": "{{baseUrl}}/api/auth/me",
+      "method": "GET",
+      "headers": [{"name": "Authorization", "value": "Bearer {{accessToken}}"}]
+    },
+    {
+      "id": "r-auth-4",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-auth",
+      "name": "Refresh Token",
+      "url": "{{baseUrl}}/api/auth/refresh",
+      "method": "POST",
+      "headers": []
+    },
+    {
+      "id": "r-auth-5",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-auth",
+      "name": "Logout",
+      "url": "{{baseUrl}}/api/auth/logout",
+      "method": "POST",
+      "headers": []
+    },
+    {
+      "id": "r-hrms-1",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-hrms",
+      "name": "List Employees",
+      "url": "{{baseUrl}}/api/hrms/employees",
+      "method": "GET",
+      "headers": [{"name": "Authorization", "value": "Bearer {{accessToken}}"}],
+      "params": [
+        {"name": "page", "value": "1"},
+        {"name": "limit", "value": "10"},
+        {"name": "search", "value": ""},
+        {"name": "department", "value": ""},
+        {"name": "status", "value": ""}
+      ]
+    },
+    {
+      "id": "r-hrms-2",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-hrms",
+      "name": "Create Employee",
+      "url": "{{baseUrl}}/api/hrms/employees",
+      "method": "POST",
+      "headers": [
+        {"name": "Authorization", "value": "Bearer {{accessToken}}"},
+        {"name": "Content-Type", "value": "application/json"}
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\"personal\":{\"fullName\":\"Priya Sharma\",\"gender\":\"FEMALE\",\"dob\":\"1995-06-15\",\"bloodGroup\":\"O+\"},\"contact\":{\"officialEmail\":\"priya@illusorydesignstudios.com\",\"personalMobile\":\"9876543210\"},\"employment\":{\"joiningDate\":\"2024-01-15\",\"department\":\"Design\",\"designation\":\"UI/UX Designer\",\"employeeType\":\"FULL_TIME\",\"workMode\":\"HYBRID\"}}"
+      }
+    },
+    {
+      "id": "r-hrms-3",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-hrms",
+      "name": "Get Employee",
+      "url": "{{baseUrl}}/api/hrms/employees/{{employeeId}}",
+      "method": "GET",
+      "headers": [{"name": "Authorization", "value": "Bearer {{accessToken}}"}]
+    },
+    {
+      "id": "r-hrms-4",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-hrms",
+      "name": "Update Employee",
+      "url": "{{baseUrl}}/api/hrms/employees/{{employeeId}}",
+      "method": "PUT",
+      "headers": [
+        {"name": "Authorization", "value": "Bearer {{accessToken}}"},
+        {"name": "Content-Type", "value": "application/json"}
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\"employment\":{\"designation\":\"Senior UI/UX Designer\",\"department\":\"Design\"}}"
+      }
+    },
+    {
+      "id": "r-hrms-5",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-hrms",
+      "name": "Delete Employee (Soft)",
+      "url": "{{baseUrl}}/api/hrms/employees/{{employeeId}}",
+      "method": "DELETE",
+      "headers": [{"name": "Authorization", "value": "Bearer {{accessToken}}"}]
+    },
+    {
+      "id": "r-hrms-6",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-hrms",
+      "name": "Upload Profile Photo",
+      "url": "{{baseUrl}}/api/hrms/employees/{{employeeId}}/photo",
+      "method": "POST",
+      "headers": [{"name": "Authorization", "value": "Bearer {{accessToken}}"}],
+      "body": {
+        "type": "formdata",
+        "form": [{"name": "photo", "value": "", "type": "file"}]
+      }
+    },
+    {
+      "id": "r-hrms-7",
+      "colId": "illusory-erp-v1",
+      "containerId": "f-hrms",
+      "name": "Upload Document",
+      "url": "{{baseUrl}}/api/hrms/employees/{{employeeId}}/documents",
+      "method": "POST",
+      "headers": [{"name": "Authorization", "value": "Bearer {{accessToken}}"}],
+      "body": {
+        "type": "formdata",
+        "form": [
+          {"name": "document", "value": "", "type": "file"},
+          {"name": "type", "value": "OFFER_LETTER"}
+        ]
+      }
+    }
+  ],
+  "environments": [
+    {
+      "id": "env-local",
+      "name": "Local Development",
+      "data": [
+        {"name": "baseUrl", "value": "http://localhost:5000"},
+        {"name": "accessToken", "value": "PASTE_TOKEN_HERE"},
+        {"name": "employeeId", "value": "PASTE_EMPLOYEE_ID_HERE"}
+      ]
+    }
+  ]
+}
