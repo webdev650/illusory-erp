@@ -274,3 +274,4 @@ employeeSchema.pre('save', async function (next) {
 employeeSchema.index({ 'personal.firstName': 'text', 'personal.lastName': 'text', 'personal.officialEmail': 'text' });
 
 export const Employee = mongoose.model('Employee', employeeSchema);
+

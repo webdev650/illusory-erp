@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ERP_MODULES } from '../config/modules';
 import {
   Home,
   Users,
@@ -22,47 +23,33 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+const ICON_MAP = {
+  Home,
+  Users,
+  UserCheck,
+  CheckSquare,
+  CreditCard,
+  Briefcase,
+  UserPlus,
+  TrendingUp,
+  Box,
+  Plane,
+  Clock,
+  BarChart3,
+  HelpCircle,
+  Wrench,
+  Settings,
+  DollarSign,
+  User,
+};
+
 export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
-  const { role, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
 
-  // Full 16 planned modules
-  const allModules = [
-    { name: 'Home', path: '/', icon: Home, status: 'active', minPermission: null },
-    { name: 'My Profile', path: '/my-profile', icon: User, status: 'active', minPermission: null },
-    {
-      name: 'HRMS (Employee Master)',
-      path: '/hrms',
-      icon: Users,
-      status: 'active',
-      minPermission: 'employee.read',
-    },
-    { name: 'Configurations', path: '/configurations', icon: Settings, status: 'active', minPermission: 'user.manage' },
-    
-    // Future roadmap modules (Coming Soon)
-    { name: 'HR Operations', path: '/modules/hr', icon: UserCheck, status: 'soon', roleAllowed: ['super_admin', 'admin', 'hr'] },
-    { name: 'Tasks', path: '/modules/tasks', icon: CheckSquare, status: 'soon' },
-    { name: 'Payroll', path: '/modules/payroll', icon: CreditCard, status: 'soon', roleAllowed: ['super_admin', 'admin', 'hr'] },
-    { name: 'Projects', path: '/modules/project', icon: Briefcase, status: 'soon' },
-    { name: 'Recruitment', path: '/modules/recruitment', icon: UserPlus, status: 'soon', roleAllowed: ['super_admin', 'admin', 'hr'] },
-    { name: 'CRM & Pipeline', path: '/modules/crm', icon: TrendingUp, status: 'soon', roleAllowed: ['super_admin', 'admin'] },
-    { name: 'Assets', path: '/modules/assets', icon: Box, status: 'soon' },
-    { name: 'Travel & Expense', path: '/modules/travel', icon: Plane, status: 'soon' },
-    { name: 'Activity Tracker', path: '/modules/tracker', icon: Clock, status: 'soon' },
-    { name: 'Reports', path: '/modules/reports', icon: BarChart3, status: 'soon', roleAllowed: ['super_admin', 'admin', 'hr'] },
-    { name: 'Support Helpdesk', path: '/modules/support', icon: HelpCircle, status: 'soon' },
-    { name: 'Utilities', path: '/modules/utilities', icon: Wrench, status: 'soon' },
-    { name: 'Finance', path: '/modules/finance', icon: DollarSign, status: 'soon', roleAllowed: ['super_admin', 'admin'] },
-  ];
-
-  // Filter modules based on user permissions/roles
-  const visibleModules = allModules.filter((mod) => {
-    if (mod.minPermission && !hasPermission(mod.minPermission)) {
-      return false;
-    }
-    if (mod.roleAllowed && !mod.roleAllowed.includes(role)) {
-      return false;
-    }
-    return true;
+  // Filter modules from the unified registry based on required permissions
+  const visibleModules = ERP_MODULES.filter((mod) => {
+    if (!mod.requiredPermission) return true;
+    return hasPermission(mod.requiredPermission);
   });
 
   return (
@@ -100,16 +87,16 @@ export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
           <div className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Navigation Modules
+            Agency Modules
           </div>
 
           {visibleModules.map((item) => {
-            const Icon = item.icon;
+            const Icon = ICON_MAP[item.icon] || Sparkles;
             const isSoon = item.status === 'soon';
 
             return (
               <NavLink
-                key={item.name}
+                key={item.key}
                 to={item.path}
                 onClick={() => setIsMobileOpen(false)}
                 className={({ isActive }) =>
@@ -122,7 +109,7 @@ export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               >
                 <div className="flex items-center space-x-3 truncate">
                   <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate">{item.name}</span>
+                  <span className="truncate">{item.label}</span>
                 </div>
                 {isSoon && (
                   <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500">
@@ -142,7 +129,7 @@ export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               Bhubaneswar, IN
             </span>
             <span className="font-mono text-[10px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">
-              v1.0.0
+              v1.2.0
             </span>
           </div>
         </div>

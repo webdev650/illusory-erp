@@ -34,3 +34,4 @@ const departmentSchema = new mongoose.Schema(
 departmentSchema.index({ isDeleted: 1 });
 
 export const Department = mongoose.model('Department', departmentSchema);
+

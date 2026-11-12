@@ -5,6 +5,9 @@ import departmentRoutes from './department.routes.js';
 import roleRoutes from './role.routes.js';
 import userRoutes from './user.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
+import approvalRoutes from './approval.routes.js';
+import notificationRoutes from './notification.routes.js';
+import hrRoutes from './hr.routes.js';
 
 const router = Router();
 
@@ -24,5 +27,8 @@ router.use('/departments', departmentRoutes);
 router.use('/roles', roleRoutes);
 router.use('/users', userRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/approvals', approvalRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/hr', hrRoutes);
 
 export default router;

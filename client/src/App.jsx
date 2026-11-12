@@ -7,6 +7,8 @@ import { ChangePassword } from './pages/ChangePassword';
 import { Home } from './pages/Home';
 import { HRMS } from './pages/HRMS';
 import { EmployeeDetail } from './pages/EmployeeDetail';
+import { HRDashboard } from './pages/HRDashboard';
+import { Approvals } from './pages/Approvals';
 import { MyProfile } from './pages/MyProfile';
 import { Configurations } from './pages/Configurations';
 import { ComingSoon } from './pages/ComingSoon';
@@ -39,7 +41,17 @@ export const App = () => {
         <Route index element={<Home />} />
         <Route path="my-profile" element={<MyProfile />} />
 
-        {/* HRMS Module (Admin & HR) */}
+        {/* HR Operations Module (Attendance, Leaves, Holidays, Approvals) */}
+        <Route
+          path="hr"
+          element={
+            <ProtectedRoute requiredPermission="hr.access">
+              <HRDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* HRMS Module (Employee Master) */}
         <Route
           path="hrms"
           element={
@@ -49,6 +61,9 @@ export const App = () => {
           }
         />
         <Route path="hrms/employees/:id" element={<EmployeeDetail />} />
+
+        {/* Approvals Portal */}
+        <Route path="approvals" element={<Approvals />} />
 
         {/* Configurations Module (Super Admin & Admin) */}
         <Route
@@ -60,7 +75,7 @@ export const App = () => {
           }
         />
 
-        {/* Coming Soon roadmap modules */}
+        {/* All roadmap modules dynamically mapped */}
         <Route path="modules/:name" element={<ComingSoon />} />
       </Route>
 

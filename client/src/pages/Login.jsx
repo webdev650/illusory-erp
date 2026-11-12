@@ -121,42 +121,45 @@ export const Login = () => {
             </button>
           </form>
 
-          {/* Quick-fill credentials for demo testing */}
-          <div className="mt-8 pt-6 border-t border-slate-800">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-3 text-center">
-              Quick Test Logins (Password: ChangeMe@123)
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => quickFill('superadmin1@illusorydesignstudios.com')}
-                className="flex flex-col items-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-all text-[11px]"
-              >
-                <ShieldCheck className="w-4 h-4 text-purple-400 mb-1" />
-                <span>Super Admin</span>
-              </button>
+          {/* Quick-fill credentials for demo testing (visible only when VITE_SHOW_QUICK_LOGIN=true) */}
+          {import.meta.env.VITE_SHOW_QUICK_LOGIN === 'true' && (
+            <div className="mt-8 pt-6 border-t border-slate-800">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-3 text-center">
+                Quick Test Logins (Password: ChangeMe@123)
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => quickFill('superadmin1@illusorydesignstudios.com')}
+                  className="flex flex-col items-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-all text-[11px]"
+                >
+                  <ShieldCheck className="w-4 h-4 text-purple-400 mb-1" />
+                  <span>Super Admin</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => quickFill('hr@illusorydesignstudios.com')}
-                className="flex flex-col items-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-all text-[11px]"
-              >
-                <UserCheck className="w-4 h-4 text-emerald-400 mb-1" />
-                <span>HR Manager</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => quickFill('hr@illusorydesignstudios.com')}
+                  className="flex flex-col items-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-all text-[11px]"
+                >
+                  <UserCheck className="w-4 h-4 text-emerald-400 mb-1" />
+                  <span>HR Manager</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => quickFill('employee1@illusorydesignstudios.com')}
-                className="flex flex-col items-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-all text-[11px]"
-              >
-                <User className="w-4 h-4 text-blue-400 mb-1" />
-                <span>Employee</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => quickFill('employee1@illusorydesignstudios.com')}
+                  className="flex flex-col items-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-all text-[11px]"
+                >
+                  <User className="w-4 h-4 text-blue-400 mb-1" />
+                  <span>Employee</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
+

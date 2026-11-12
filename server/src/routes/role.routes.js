@@ -9,3 +9,4 @@ router.use(requireAuth);
 router.get('/', requirePermission('user.manage'), listRoles);
 
 export default router;
+

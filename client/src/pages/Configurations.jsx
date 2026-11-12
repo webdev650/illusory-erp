@@ -502,3 +502,4 @@ export const Configurations = () => {
     </div>
   );
 };
+

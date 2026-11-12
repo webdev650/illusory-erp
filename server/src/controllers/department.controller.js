@@ -100,3 +100,4 @@ export const deleteDepartment = async (req, res, next) => {
     next(error);
   }
 };
+

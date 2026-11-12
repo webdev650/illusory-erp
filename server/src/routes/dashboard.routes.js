@@ -9,3 +9,4 @@ router.use(requireAuth);
 router.get('/summary', requirePermission('dashboard.read'), getDashboardSummary);
 
 export default router;
+

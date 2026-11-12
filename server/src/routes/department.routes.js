@@ -18,3 +18,4 @@ router.put('/:id', requirePermission('department.manage'), updateDepartment);
 router.delete('/:id', requirePermission('department.manage'), deleteDepartment);
 
 export default router;
+

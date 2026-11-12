@@ -19,3 +19,4 @@ router.patch('/:id/status', toggleUserStatus);
 router.post('/:id/reset-password', resetUserPassword);
 
 export default router;
+

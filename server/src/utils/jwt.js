@@ -30,3 +30,4 @@ export const clearTokenCookie = (res) => {
     expires: new Date(0),
   });
 };
+

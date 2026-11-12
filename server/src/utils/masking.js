@@ -61,3 +61,4 @@ export const sanitizeEmployee = (employee, userPermissions = [], isSelf = false)
 
   return emp;
 };
+
