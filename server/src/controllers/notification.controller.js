@@ -61,3 +61,4 @@ export const markAllAsRead = async (req, res, next) => {
     next(err);
   }
 };
+

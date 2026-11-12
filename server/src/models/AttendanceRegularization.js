@@ -48,3 +48,4 @@ export const AttendanceRegularization = mongoose.model(
   'AttendanceRegularization',
   regularizationSchema
 );
+

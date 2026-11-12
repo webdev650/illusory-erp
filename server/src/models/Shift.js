@@ -18,3 +18,4 @@ const shiftSchema = new mongoose.Schema(
 );
 
 export const Shift = mongoose.model('Shift', shiftSchema);
+

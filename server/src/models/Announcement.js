@@ -37,3 +37,4 @@ const announcementSchema = new mongoose.Schema(
 announcementSchema.index({ pinned: -1, createdAt: -1 });
 
 export const Announcement = mongoose.model('Announcement', announcementSchema);
+

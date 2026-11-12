@@ -164,3 +164,4 @@ export const getCelebrations = async (req, res, next) => {
     next(err);
   }
 };
+

@@ -48,3 +48,4 @@ export const sendEmail = async ({ to, subject, html, text }) => {
     return { success: false, error: err.message };
   }
 };
+

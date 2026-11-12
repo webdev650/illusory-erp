@@ -877,3 +877,4 @@ export const HRDashboard = () => {
     </div>
   );
 };
+

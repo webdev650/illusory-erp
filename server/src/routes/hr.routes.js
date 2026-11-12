@@ -87,3 +87,4 @@ router.delete('/announcements/:id', requirePermission('announcement.create'), de
 router.get('/celebrations', getCelebrations);
 
 export default router;
+

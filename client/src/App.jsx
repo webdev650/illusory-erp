@@ -12,6 +12,10 @@ import { Approvals } from './pages/Approvals';
 import { MyProfile } from './pages/MyProfile';
 import { Configurations } from './pages/Configurations';
 import { ComingSoon } from './pages/ComingSoon';
+import { Clients } from './pages/Clients';
+import { Projects } from './pages/Projects';
+import { ProjectDetail } from './pages/ProjectDetail';
+import { Tasks } from './pages/Tasks';
 
 export const App = () => {
   return (
@@ -64,6 +68,44 @@ export const App = () => {
 
         {/* Approvals Portal */}
         <Route path="approvals" element={<Approvals />} />
+
+        {/* Projects Module (Live) */}
+        <Route
+          path="projects"
+          element={
+            <ProtectedRoute requiredPermission={['project.read', 'project.readOwn']}>
+              <Projects />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="projects/:id"
+          element={
+            <ProtectedRoute requiredPermission={['project.read', 'project.readOwn']}>
+              <ProjectDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Tasks Module (Live) */}
+        <Route
+          path="tasks"
+          element={
+            <ProtectedRoute requiredPermission={['task.read', 'task.readOwn']}>
+              <Tasks />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Clients Module (Live) */}
+        <Route
+          path="clients"
+          element={
+            <ProtectedRoute requiredPermission="client.read">
+              <Clients />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Configurations Module (Super Admin & Admin) */}
         <Route

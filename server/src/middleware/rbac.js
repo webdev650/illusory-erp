@@ -2,6 +2,9 @@ import { sendError } from '../utils/apiResponse.js';
 
 export const hasPermission = (permissions = [], requiredKey) => {
   if (permissions.includes('*')) return true;
+  if (Array.isArray(requiredKey)) {
+    return requiredKey.some((k) => permissions.includes(k));
+  }
   return permissions.includes(requiredKey);
 };
 

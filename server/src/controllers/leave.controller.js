@@ -304,3 +304,4 @@ export const getAllLeaveRequests = async (req, res, next) => {
     next(err);
   }
 };
+

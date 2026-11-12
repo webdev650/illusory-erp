@@ -8,6 +8,9 @@ import dashboardRoutes from './dashboard.routes.js';
 import approvalRoutes from './approval.routes.js';
 import notificationRoutes from './notification.routes.js';
 import hrRoutes from './hr.routes.js';
+import clientRoutes from './client.routes.js';
+import projectRoutes from './project.routes.js';
+import taskRoutes from './task.routes.js';
 
 const router = Router();
 
@@ -30,5 +33,8 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/approvals', approvalRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/hr', hrRoutes);
+router.use('/clients', clientRoutes);
+router.use('/projects', projectRoutes);
+router.use('/tasks', taskRoutes);
 
 export default router;

@@ -1,8 +1,10 @@
 import cron from 'node-cron';
-import { Attendance } from '../models/Attendance.js';
-import { Employee } from '../models/Employee.js';
-import { Holiday } from '../models/Holiday.js';
+import Attendance from '../models/Attendance.js';
+import Employee from '../models/Employee.js';
+import Holiday from '../models/Holiday.js';
+import Task from '../models/Task.js';
 import { normalizeToKolkataMidnight } from '../utils/dateUtils.js';
+import { notifyEmployee } from './notification.service.js';
 
 export const initCronJobs = () => {
   // Run daily at 23:59 Asia/Kolkata time
@@ -68,5 +70,62 @@ export const initCronJobs = () => {
     }
   );
 
-  console.log('🕒 Node-Cron daily attendance job registered for 23:59 IST');
+  // Run daily at 09:00 AM Asia/Kolkata time for task reminders
+  cron.schedule(
+    '0 9 * * *',
+    async () => {
+      console.log('⏰ [Cron] Running daily 9:00 AM task deadline reminders...');
+      try {
+        const todayMidnight = normalizeToKolkataMidnight(new Date());
+        const tomorrowMidnight = new Date(todayMidnight.getTime() + 24 * 60 * 60 * 1000);
+        const dayAfterTomorrow = new Date(todayMidnight.getTime() + 48 * 60 * 60 * 1000);
+
+        // 1. Overdue tasks
+        const overdueTasks = await Task.find({
+          status: { $ne: 'done' },
+          dueDate: { $lt: todayMidnight },
+          isDeleted: false,
+        }).select('taskCode title dueDate assignees project');
+
+        for (const task of overdueTasks) {
+          for (const empId of task.assignees || []) {
+            await notifyEmployee(empId, {
+              title: `[Overdue] ${task.taskCode}: ${task.title}`,
+              message: `This task was due on ${task.dueDate?.toLocaleDateString('en-IN')} and is currently overdue.`,
+              link: `/projects/${task.project}?task=${task._id}`,
+              type: 'task',
+            });
+          }
+        }
+
+        // 2. Tasks due tomorrow
+        const tomorrowTasks = await Task.find({
+          status: { $ne: 'done' },
+          dueDate: { $gte: tomorrowMidnight, $lt: dayAfterTomorrow },
+          isDeleted: false,
+        }).select('taskCode title dueDate assignees project');
+
+        for (const task of tomorrowTasks) {
+          for (const empId of task.assignees || []) {
+            await notifyEmployee(empId, {
+              title: `[Due Tomorrow] ${task.taskCode}: ${task.title}`,
+              message: `Reminder: This task is scheduled for completion tomorrow.`,
+              link: `/projects/${task.project}?task=${task._id}`,
+              type: 'task',
+            });
+          }
+        }
+
+        console.log(`✅ [Cron] Task deadline notifications dispatched (${overdueTasks.length} overdue, ${tomorrowTasks.length} due tomorrow).`);
+      } catch (err) {
+        console.error('❌ [Cron Error] Task reminder job failed:', err.message);
+      }
+    },
+    {
+      timezone: 'Asia/Kolkata',
+    }
+  );
+
+  console.log('🕒 Node-Cron registered: Attendance (23:59 IST) & Task Reminders (09:00 IST)');
 };
+

@@ -71,6 +71,7 @@ export const AuthProvider = ({ children }) => {
   const hasPermission = (key) => {
     if (!user) return false;
     if (permissions.includes('*')) return true;
+    if (Array.isArray(key)) return key.some((k) => permissions.includes(k));
     return permissions.includes(key);
   };
 

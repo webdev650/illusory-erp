@@ -89,3 +89,4 @@ export const AttendanceTrendChart = ({ data = [] }) => {
     </div>
   );
 };
+

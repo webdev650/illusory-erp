@@ -21,6 +21,7 @@ import {
   DollarSign,
   User,
   Sparkles,
+  Building2,
 } from 'lucide-react';
 
 const ICON_MAP = {
@@ -41,6 +42,7 @@ const ICON_MAP = {
   Settings,
   DollarSign,
   User,
+  Building2,
 };
 
 export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {

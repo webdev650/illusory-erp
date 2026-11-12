@@ -59,3 +59,4 @@ export const isPunchLate = (punchDate, shiftStartTime = '09:30', graceMinutes = 
 
   return punch > expectedTime;
 };
+

@@ -20,6 +20,8 @@ import {
   Send,
   AlertCircle,
   CheckCircle2,
+  CheckSquare,
+  Briefcase,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -30,6 +32,8 @@ export const Home = () => {
   const [celebrations, setCelebrations] = useState({ birthdays: [], anniversaries: [] });
   const [upcomingHolidays, setUpcomingHolidays] = useState([]);
   const [leaveBalances, setLeaveBalances] = useState([]);
+  const [myTasksData, setMyTasksData] = useState({ today: [], thisWeek: [], overdue: [], all: [] });
+  const [myProjects, setMyProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Apply Leave Modal
@@ -67,15 +71,19 @@ export const Home = () => {
 
       // Fetch employee specific data
       if (user?.employee) {
-        const [balRes, typesRes] = await Promise.all([
+        const [balRes, typesRes, tasksRes, projsRes] = await Promise.all([
           api.get('/hr/leave/balances'),
           api.get('/hr/leave/types'),
+          api.get('/tasks/my'),
+          api.get('/projects/my'),
         ]);
         if (balRes.success) setLeaveBalances(balRes.data);
         if (typesRes.success) {
           setLeaveTypes(typesRes.data);
           if (typesRes.data[0]) setLeaveForm((f) => ({ ...f, leaveTypeId: typesRes.data[0]._id }));
         }
+        if (tasksRes.success) setMyTasksData(tasksRes.data);
+        if (projsRes.success) setMyProjects(projsRes.data.projects || []);
       }
     } catch (err) {
       console.warn('Dashboard fetch error', err);
@@ -181,6 +189,127 @@ export const Home = () => {
           </div>
         </div>
       )}
+
+      {/* 3.5. My Projects & My Tasks Widgets (Day 3) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* My Open Tasks Widget */}
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckSquare className="w-4 h-4 text-brand-600" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                My Open Tasks & Deadlines
+              </h3>
+            </div>
+            <Link to="/tasks" className="text-xs font-semibold text-brand-600 hover:underline">
+              View All Tasks &rarr;
+            </Link>
+          </div>
+
+          {/* Quick Sub-Stats */}
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700">
+              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Today</span>
+              <span className="font-bold text-slate-900 dark:text-white text-base">
+                {myTasksData.today?.length || 0}
+              </span>
+            </div>
+            <div className="p-2 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/50 text-amber-800 dark:text-amber-300">
+              <span className="block text-[10px] uppercase font-semibold">This Week</span>
+              <span className="font-bold text-base">{myTasksData.thisWeek?.length || 0}</span>
+            </div>
+            <div className="p-2 rounded-xl bg-red-50/60 dark:bg-red-950/20 border border-red-200/50 text-red-700 dark:text-red-400">
+              <span className="block text-[10px] uppercase font-semibold">Overdue</span>
+              <span className="font-bold text-base">{myTasksData.overdue?.length || 0}</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {(myTasksData.all || []).filter((t) => t.status !== 'done').length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">No pending tasks assigned to you.</p>
+            ) : (
+              (myTasksData.all || [])
+                .filter((t) => t.status !== 'done')
+                .slice(0, 4)
+                .map((t) => (
+                  <Link
+                    key={t._id}
+                    to={t.project?._id ? `/projects/${t.project._id}` : '/tasks'}
+                    className="block p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-700/40 border border-slate-100 dark:border-slate-700/60 transition-colors group"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-mono text-[11px] font-bold text-brand-600">
+                        {t.taskCode}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                        {t.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-brand-600 truncate">
+                      {t.title}
+                    </h4>
+                    {t.dueDate && (
+                      <span className="text-[11px] text-slate-400 mt-1 block">
+                        Due: {new Date(t.dueDate).toLocaleDateString('en-IN')}
+                      </span>
+                    )}
+                  </Link>
+                ))
+            )}
+          </div>
+        </div>
+
+        {/* My Active Projects Widget */}
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-brand-600" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                My Active Projects
+              </h3>
+            </div>
+            <Link to="/projects" className="text-xs font-semibold text-brand-600 hover:underline">
+              View All Projects &rarr;
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {myProjects.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">No projects assigned to your portfolio.</p>
+            ) : (
+              myProjects.slice(0, 3).map((p) => (
+                <Link
+                  key={p._id}
+                  to={`/projects/${p._id}`}
+                  className="block p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-700/40 border border-slate-100 dark:border-slate-700/60 transition-colors group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-mono text-[11px] font-bold text-brand-600">
+                      {p.projectCode}
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      {p.status}
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-brand-600 truncate">
+                    {p.name}
+                  </h4>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Client: {p.client?.name || 'Internal'}</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{p.progressPercent || 0}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1.5">
+                    <div
+                      className="bg-brand-600 h-full rounded-full transition-all"
+                      style={{ width: `${p.progressPercent || 0}%` }}
+                    />
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* 4. Admin Metrics Grid (if Admin/HR) */}
       {isAdminOrHr && summary && (

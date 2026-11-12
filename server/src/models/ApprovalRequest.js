@@ -82,3 +82,4 @@ approvalRequestSchema.index({ status: 1, 'steps.approverEmployee': 1 });
 approvalRequestSchema.index({ status: 1, 'steps.approverRole': 1 });
 
 export const ApprovalRequest = mongoose.model('ApprovalRequest', approvalRequestSchema);
+

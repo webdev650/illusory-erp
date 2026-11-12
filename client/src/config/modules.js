@@ -1,6 +1,6 @@
 /**
  * Master Registry of all 16 ERP Modules for Illusory ERP
- * Shared architectural definition used by Frontend Sidebar and Routing
+ * Shared architectural definition used by both Backend RBAC and Frontend Sidebar
  */
 
 export const ERP_MODULES = [
@@ -32,19 +32,43 @@ export const ERP_MODULES = [
     description: 'Daily attendance tracker, check-in/out, leave applications, holiday calendars, approvals & announcements',
   },
   {
+    key: 'projects',
+    label: 'Projects',
+    icon: 'Briefcase',
+    path: '/projects',
+    status: 'live',
+    requiredPermission: ['project.read', 'project.readOwn'],
+    description: 'Client design & tech contracts, deliverables, milestones, budgets, and team allocation',
+    plannedFeatures: [
+      'Client project lifecycle management (Design & Development)',
+      'Budget allocation vs actual hourly burn rate',
+      'Deliverable sign-offs and client feedback portals',
+      'Team resource capacity planning',
+    ],
+  },
+  {
     key: 'tasks',
     label: 'Tasks',
     icon: 'CheckSquare',
-    path: '/modules/tasks',
-    status: 'soon',
-    requiredPermission: 'task.read',
-    description: 'Internal project task lists, deadlines, priority boards, and subtask tracking',
+    path: '/tasks',
+    status: 'live',
+    requiredPermission: ['task.read', 'task.readOwn'],
+    description: 'Kanban boards, sprint view, task assignment, checklists, subtasks, and deadlines',
     plannedFeatures: [
       'Kanban board and sprint views',
       'Task assignment with automated notification alerts',
       'Checklists, file attachments, and completion milestones',
       'Time logging connected directly to attendance records',
     ],
+  },
+  {
+    key: 'clients',
+    label: 'Clients',
+    icon: 'Building2',
+    path: '/clients',
+    status: 'live',
+    requiredPermission: 'client.read',
+    description: 'Client directory, agency accounts, contact persons, GST and contract history',
   },
   {
     key: 'payroll',
@@ -59,21 +83,6 @@ export const ERP_MODULES = [
       'Integration with attendance and approved leaves for LOP deductions',
       'TDS, EPF, and ESI compliance calculator',
       'Bank disbursement bulk export file generator',
-    ],
-  },
-  {
-    key: 'projects',
-    label: 'Projects',
-    icon: 'Briefcase',
-    path: '/modules/projects',
-    status: 'soon',
-    requiredPermission: 'project.read',
-    description: 'Client design & tech contracts, deliverables, milestones, and team allocation',
-    plannedFeatures: [
-      'Client project lifecycle management (Design & Development)',
-      'Budget allocation vs actual hourly burn rate',
-      'Deliverable sign-offs and client feedback portals',
-      'Team resource capacity planning',
     ],
   },
   {

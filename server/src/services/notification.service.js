@@ -45,3 +45,17 @@ export const notifyUser = async ({ userId, title, message, link = '', type = 'sy
     console.warn(`[Notification Warning] Could not notify user ${userId}:`, err.message);
   }
 };
+
+export const notifyEmployee = async (employeeId, { title, message, link = '', type = 'system' }) => {
+  try {
+    if (!employeeId) return null;
+    const user = await User.findOne({ employee: employeeId }).select('_id email');
+    if (user) {
+      return await notifyUser({ userId: user._id, title, message, link, type, email: user.email });
+    }
+  } catch (err) {
+    console.warn(`[Notification Warning] Could not notify employee ${employeeId}:`, err.message);
+  }
+  return null;
+};
+
