@@ -37,7 +37,7 @@ const approvalRequestSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ['leave', 'expense', 'travel', 'asset', 'regularization', 'other'],
+      enum: ['leave', 'expense', 'travel', 'asset', 'asset_request', 'regularization', 'timesheet', 'other'],
       index: true,
     },
     referenceModel: {
@@ -82,4 +82,5 @@ approvalRequestSchema.index({ status: 1, 'steps.approverEmployee': 1 });
 approvalRequestSchema.index({ status: 1, 'steps.approverRole': 1 });
 
 export const ApprovalRequest = mongoose.model('ApprovalRequest', approvalRequestSchema);
+export default ApprovalRequest;
 

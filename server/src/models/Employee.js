@@ -253,7 +253,7 @@ employeeSchema.virtual('fullName').get(function () {
 });
 
 // Auto-generate employeeId (IDS001, IDS002, ...)
-employeeSchema.pre('save', async function (next) {
+employeeSchema.pre('save', async function () {
   if (this.isNew && !this.employeeId) {
     const lastEmployee = await mongoose
       .model('Employee')
@@ -268,10 +268,10 @@ employeeSchema.pre('save', async function (next) {
     }
     this.employeeId = `IDS${String(nextNumber).padStart(3, '0')}`;
   }
-  next();
 });
 
 employeeSchema.index({ 'personal.firstName': 'text', 'personal.lastName': 'text', 'personal.officialEmail': 'text' });
 
 export const Employee = mongoose.model('Employee', employeeSchema);
+export default Employee;
 

@@ -192,14 +192,13 @@ projectSchema.index({ name: 'text', description: 'text', tags: 'text' });
 projectSchema.index({ 'members.employee': 1 });
 
 // Auto-generate projectCode before save if not provided
-projectSchema.pre('save', async function (next) {
+projectSchema.pre('save', async function () {
   if (!this.projectCode) {
     const year = new Date().getFullYear();
     const count = await mongoose.model('Project').countDocuments();
     const sequence = String(count + 1).padStart(3, '0');
     this.projectCode = `PRJ-${year}-${sequence}`;
   }
-  next();
 });
 
 export default mongoose.model('Project', projectSchema);

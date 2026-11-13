@@ -36,4 +36,5 @@ const workflowConfigSchema = new mongoose.Schema(
 );
 
 export const WorkflowConfig = mongoose.model('WorkflowConfig', workflowConfigSchema);
+export default WorkflowConfig;
 

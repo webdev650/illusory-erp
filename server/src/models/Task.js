@@ -147,7 +147,7 @@ taskSchema.index({ title: 'text', description: 'text', labels: 'text' });
 taskSchema.index({ project: 1, status: 1, order: 1 });
 taskSchema.index({ project: 1, dueDate: 1 });
 
-taskSchema.pre('save', async function (next) {
+taskSchema.pre('save', async function () {
   if (!this.taskCode) {
     const count = await mongoose.model('Task').countDocuments();
     const sequence = String(count + 1).padStart(4, '0');
@@ -160,7 +160,6 @@ taskSchema.pre('save', async function (next) {
       this.completedAt = null;
     }
   }
-  next();
 });
 
 export default mongoose.model('Task', taskSchema);

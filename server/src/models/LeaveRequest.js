@@ -55,4 +55,5 @@ const leaveRequestSchema = new mongoose.Schema(
 leaveRequestSchema.index({ employee: 1, fromDate: 1, toDate: 1 });
 
 export const LeaveRequest = mongoose.model('LeaveRequest', leaveRequestSchema);
+export default LeaveRequest;
 

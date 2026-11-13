@@ -2550,7 +2550,7 @@ const seedDatabase = async () => {
     // 19.4 Seed 5 Enterprise Software Licenses (Encrypted Keys at Rest)
     const softwareLicensesSeed = [
       {
-        softwareName: 'Figma Enterprise',
+        name: 'Figma Enterprise',
         vendor: 'Figma Inc.',
         licenseType: 'per_user',
         totalSeats: 50,
@@ -2570,7 +2570,7 @@ const seedDatabase = async () => {
         notes: 'Studio-wide UI/UX vector design, design systems, and FigJam collaborative whiteboards.',
       },
       {
-        softwareName: 'Adobe Creative Cloud All Apps',
+        name: 'Adobe Creative Cloud All Apps',
         vendor: 'Adobe Systems India',
         licenseType: 'per_user',
         totalSeats: 25,
@@ -2588,7 +2588,7 @@ const seedDatabase = async () => {
         notes: 'Photoshop, Illustrator, Premiere Pro, and After Effects team licenses.',
       },
       {
-        softwareName: 'Microsoft 365 Business Standard',
+        name: 'Microsoft 365 Business Standard',
         vendor: 'Microsoft Cloud Solution Provider',
         licenseType: 'per_user',
         totalSeats: 100,
@@ -2596,7 +2596,7 @@ const seedDatabase = async () => {
         licenseKey: encryptLicenseKey('MSFT-365-CSP-9988-1234-5678-PROD'),
         renewalDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // Renewal in 14 days (triggers renewal alert!)
         cost: 9500000,
-        billingCycle: 'annual',
+        billingCycle: 'yearly',
         status: 'active',
         assignedTo: [
           { employee: ceoEmp?._id, assignedAt: new Date('2024-01-01') },
@@ -2611,7 +2611,7 @@ const seedDatabase = async () => {
         notes: 'Corporate email, OneDrive 1TB per user, and Office 365 apps.',
       },
       {
-        softwareName: 'GitHub Enterprise Cloud',
+        name: 'GitHub Enterprise Cloud',
         vendor: 'GitHub, Inc.',
         licenseType: 'per_user',
         totalSeats: 30,
@@ -2619,7 +2619,7 @@ const seedDatabase = async () => {
         licenseKey: encryptLicenseKey('GH-ENT-ORG-ILLUSORY-STUDIOS-TOKEN-XYZ990'),
         renewalDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
         cost: 5400000,
-        billingCycle: 'annual',
+        billingCycle: 'yearly',
         status: 'active',
         assignedTo: [
           { employee: ctoEmp?._id, assignedAt: new Date('2024-01-01') },
@@ -2631,7 +2631,7 @@ const seedDatabase = async () => {
         notes: 'Private repositories, CI/CD Actions, and advanced code security audit logging.',
       },
       {
-        softwareName: 'Slack Enterprise Grid',
+        name: 'Slack Enterprise Grid',
         vendor: 'Slack Technologies LLC',
         licenseType: 'per_user',
         totalSeats: 100,
@@ -2639,7 +2639,7 @@ const seedDatabase = async () => {
         licenseKey: encryptLicenseKey('SLACK-GRID-WS-ILLUSORY-LIC-8811-OAUTH'),
         renewalDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
         cost: 6800000,
-        billingCycle: 'annual',
+        billingCycle: 'yearly',
         status: 'active',
         assignedTo: [
           { employee: ceoEmp?._id, assignedAt: new Date('2024-01-01') },
@@ -2654,7 +2654,7 @@ const seedDatabase = async () => {
 
     for (const lic of softwareLicensesSeed) {
       await SoftwareLicense.findOneAndUpdate(
-        { softwareName: lic.softwareName },
+        { name: lic.name },
         { $set: { ...lic, isDeleted: false } },
         { upsert: true }
       );

@@ -18,4 +18,5 @@ const holidaySchema = new mongoose.Schema(
 holidaySchema.index({ date: 1, year: 1 });
 
 export const Holiday = mongoose.model('Holiday', holidaySchema);
+export default Holiday;
 
