@@ -119,9 +119,9 @@ export const ERP_MODULES = [
     key: 'assets',
     label: 'Assets',
     icon: 'Box',
-    path: '/modules/assets',
-    status: 'soon',
-    requiredPermission: 'asset.read',
+    path: '/assets',
+    status: 'live',
+    requiredPermission: ['asset.read', 'asset.readOwn'],
     description: 'Studio hardware inventory, MacBook/PC assignments, licenses, and maintenance logs',
     plannedFeatures: [
       'Hardware and software asset inventory registry with barcode/QR',

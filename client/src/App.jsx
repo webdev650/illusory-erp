@@ -17,6 +17,8 @@ import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { Tasks } from './pages/Tasks';
 import { ActivityTracker } from './pages/ActivityTracker';
+import { Assets } from './pages/Assets';
+import { AssetDetail } from './pages/AssetDetail';
 
 export const App = () => {
   return (
@@ -121,6 +123,24 @@ export const App = () => {
               ]}
             >
               <ActivityTracker />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Assets Module (Live) */}
+        <Route
+          path="assets"
+          element={
+            <ProtectedRoute requiredPermission={['asset.read', 'asset.readOwn']}>
+              <Assets />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="assets/:id"
+          element={
+            <ProtectedRoute requiredPermission={['asset.read', 'asset.readOwn']}>
+              <AssetDetail />
             </ProtectedRoute>
           }
         />

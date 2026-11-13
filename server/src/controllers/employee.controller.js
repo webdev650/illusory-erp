@@ -4,6 +4,7 @@ import { Role } from '../models/Role.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import { sanitizeEmployee } from '../utils/masking.js';
 import { logAudit } from '../middleware/audit.js';
+import { initiateExitClearance } from '../services/asset.service.js';
 
 // GET /api/v1/employees - List employees with filters & pagination
 export const listEmployees = async (req, res, next) => {
@@ -335,6 +336,15 @@ export const updateEmployeeStatus = async (req, res, next) => {
     });
 
     await employee.save();
+
+    // Trigger exit clearance checklist if transitioning to notice, resigned, or terminated
+    if (['notice', 'resigned', 'terminated'].includes(status)) {
+      try {
+        await initiateExitClearance(id);
+      } catch (clearanceErr) {
+        console.warn('Exit clearance initiation error:', clearanceErr.message);
+      }
+    }
 
     // If resigned or terminated or inactive, deactivate user
     if (['resigned', 'terminated', 'inactive'].includes(status)) {

@@ -98,3 +98,4 @@ timeEntrySchema.index({ employee: 1, status: 1 });
 timeEntrySchema.index({ project: 1, date: 1 });
 
 export default mongoose.model('TimeEntry', timeEntrySchema);
+

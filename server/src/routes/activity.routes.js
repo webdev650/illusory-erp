@@ -83,3 +83,4 @@ router.get(
 router.get('/export', requirePermission('activity.export'), exportActivityData);
 
 export default router;
+

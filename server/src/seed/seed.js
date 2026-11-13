@@ -21,11 +21,19 @@ import TaskActivity from '../models/TaskActivity.js';
 import TimeEntry from '../models/TimeEntry.js';
 import Timesheet from '../models/Timesheet.js';
 import ActiveTimer from '../models/ActiveTimer.js';
+import Asset from '../models/Asset.js';
+import AssetCategory from '../models/AssetCategory.js';
+import AssetAssignment from '../models/AssetAssignment.js';
+import AssetRequest from '../models/AssetRequest.js';
+import MaintenanceRecord from '../models/MaintenanceRecord.js';
+import SoftwareLicense from '../models/SoftwareLicense.js';
+import ExitClearance from '../models/ExitClearance.js';
 import {
   toKolkataDateOnly,
   getWeekBounds,
   recalculateTaskAndProjectTime,
 } from '../services/activity.service.js';
+import { encryptLicenseKey } from '../services/asset.service.js';
 import { ROLE_PERMISSIONS } from '../config/modules.js';
 
 dotenv.config();
@@ -72,6 +80,13 @@ const seedDatabase = async () => {
         key: 'project_manager',
         description: 'Project lead with full control over assigned client projects, task delegation, and milestones',
         permissions: ROLE_PERMISSIONS.project_manager,
+        isSystem: true,
+      },
+      {
+        name: 'IT Admin',
+        key: 'it_admin',
+        description: 'IT Systems and Asset Administrator with full hardware, licensing, and clearance access',
+        permissions: ROLE_PERMISSIONS.it_admin,
         isSystem: true,
       },
       {
@@ -169,7 +184,22 @@ const seedDatabase = async () => {
       },
       { upsert: true }
     );
-    console.log('  ✓ Leave & Attendance workflows registered');
+
+    await WorkflowConfig.findOneAndUpdate(
+      { type: 'asset_request' },
+      {
+        $set: {
+          name: 'Asset Request Approval',
+          description: 'Department Lead / Manager approval before IT hardware fulfillment',
+          steps: [
+            { order: 1, name: 'Manager Review', approverType: 'manager' },
+          ],
+          isActive: true,
+        },
+      },
+      { upsert: true }
+    );
+    console.log('  ✓ Leave, Attendance & Asset Request workflows registered');
 
     // 5. Leave Types
     console.log('\n--- 5. Syncing Leave Types ---');
@@ -245,6 +275,16 @@ const seedDatabase = async () => {
         designation: 'Technical Project Lead',
         deptCode: 'DEV',
         roleKey: 'project_manager',
+      },
+      // 1 IT Admin
+      {
+        firstName: 'Subrat',
+        lastName: 'Mohanty',
+        email: 'itadmin@illusorydesignstudios.com',
+        phone: '+91 98765 43222',
+        designation: 'IT Systems & Security Lead',
+        deptCode: 'DEV',
+        roleKey: 'it_admin',
       },
       // 8 Employees
       {
@@ -678,17 +718,21 @@ const seedDatabase = async () => {
 
     // 13. Seed Projects (Day 3)
     console.log('\n--- 13. Syncing Projects ---');
-    const ceoEmp = await Employee.findOne({ officialEmail: 'superadmin1@illusorydesignstudios.com' });
-    const ctoEmp = await Employee.findOne({ officialEmail: 'superadmin2@illusorydesignstudios.com' });
-    const pmEmp = await Employee.findOne({ officialEmail: 'pm@illusorydesignstudios.com' }) || ctoEmp;
-    const emp1 = await Employee.findOne({ officialEmail: 'employee1@illusorydesignstudios.com' });
-    const emp2 = await Employee.findOne({ officialEmail: 'employee2@illusorydesignstudios.com' });
-    const emp3 = await Employee.findOne({ officialEmail: 'employee3@illusorydesignstudios.com' });
-    const emp4 = await Employee.findOne({ officialEmail: 'employee4@illusorydesignstudios.com' });
-    const emp5 = await Employee.findOne({ officialEmail: 'employee5@illusorydesignstudios.com' });
-    const emp6 = await Employee.findOne({ officialEmail: 'employee6@illusorydesignstudios.com' });
-    const emp7 = await Employee.findOne({ officialEmail: 'employee7@illusorydesignstudios.com' });
-    const emp8 = await Employee.findOne({ officialEmail: 'employee8@illusorydesignstudios.com' });
+    const findEmp = async (email) =>
+      await Employee.findOne({ $or: [{ 'personal.officialEmail': email }, { officialEmail: email }] });
+    const ceoEmp = await findEmp('superadmin1@illusorydesignstudios.com');
+    const ctoEmp = await findEmp('superadmin2@illusorydesignstudios.com');
+    const pmEmp = (await findEmp('pm@illusorydesignstudios.com')) || ctoEmp;
+    const itAdminEmp = await findEmp('itadmin@illusorydesignstudios.com');
+    const hrEmp = await findEmp('hr@illusorydesignstudios.com');
+    const emp1 = await findEmp('employee1@illusorydesignstudios.com');
+    const emp2 = await findEmp('employee2@illusorydesignstudios.com');
+    const emp3 = await findEmp('employee3@illusorydesignstudios.com');
+    const emp4 = await findEmp('employee4@illusorydesignstudios.com');
+    const emp5 = await findEmp('employee5@illusorydesignstudios.com');
+    const emp6 = await findEmp('employee6@illusorydesignstudios.com');
+    const emp7 = await findEmp('employee7@illusorydesignstudios.com');
+    const emp8 = await findEmp('employee8@illusorydesignstudios.com');
 
     const projectsData = [
       {
@@ -1655,12 +1699,1045 @@ const seedDatabase = async () => {
     }
     console.log(`  ✓ Completed recalculation of logged hours and costToDate across all projects.`);
 
+    // 19. Seed Assets Module: Categories, Hardware Register, Assignments, Maintenance, Software Licenses, and Requests (Day 5)
+    console.log('\n--- 19. Syncing Assets Module Data (Day 5) ---');
+
+    // 19.1 Asset Categories (13 Standard Categories)
+    const assetCategoriesData = [
+      {
+        name: 'Laptop',
+        code: 'LAP',
+        type: 'hardware',
+        depreciationYears: 3,
+        customFields: [
+          { label: 'RAM', type: 'text' },
+          { label: 'Processor', type: 'text' },
+          { label: 'Storage', type: 'text' },
+        ],
+      },
+      {
+        name: 'Desktop',
+        code: 'DSK',
+        type: 'hardware',
+        depreciationYears: 4,
+        customFields: [
+          { label: 'RAM', type: 'text' },
+          { label: 'Processor', type: 'text' },
+          { label: 'GPU', type: 'text' },
+        ],
+      },
+      {
+        name: 'Monitor',
+        code: 'MON',
+        type: 'hardware',
+        depreciationYears: 4,
+        customFields: [
+          { label: 'Screen Size', type: 'text' },
+          { label: 'Resolution', type: 'text' },
+        ],
+      },
+      {
+        name: 'Mobile Phone',
+        code: 'MOB',
+        type: 'hardware',
+        depreciationYears: 2,
+        customFields: [
+          { label: 'OS', type: 'text' },
+          { label: 'Storage', type: 'text' },
+          { label: 'IMEI', type: 'text' },
+        ],
+      },
+      {
+        name: 'Tablet',
+        code: 'TAB',
+        type: 'hardware',
+        depreciationYears: 3,
+        customFields: [
+          { label: 'OS', type: 'text' },
+          { label: 'Storage', type: 'text' },
+        ],
+      },
+      {
+        name: 'Camera',
+        code: 'CAM',
+        type: 'hardware',
+        depreciationYears: 5,
+        customFields: [
+          { label: 'Sensor', type: 'text' },
+          { label: 'Lens Mount', type: 'text' },
+        ],
+      },
+      {
+        name: 'Keyboard/Mouse',
+        code: 'KBM',
+        type: 'accessory',
+        depreciationYears: 2,
+        customFields: [
+          { label: 'Connectivity', type: 'text' },
+          { label: 'Switch Type', type: 'text' },
+        ],
+      },
+      {
+        name: 'Headphones',
+        code: 'HPH',
+        type: 'accessory',
+        depreciationYears: 2,
+        customFields: [
+          { label: 'Type', type: 'text' },
+          { label: 'Noise Cancelling', type: 'text' },
+        ],
+      },
+      {
+        name: 'Drawing Tablet',
+        code: 'DTB',
+        type: 'hardware',
+        depreciationYears: 3,
+        customFields: [
+          { label: 'Active Area', type: 'text' },
+          { label: 'Pen Pressure', type: 'text' },
+        ],
+      },
+      {
+        name: 'Software Licence',
+        code: 'LIC',
+        type: 'software',
+        depreciationYears: 1,
+        customFields: [
+          { label: 'Edition', type: 'text' },
+          { label: 'Platform', type: 'text' },
+        ],
+      },
+      {
+        name: 'ID/Access Card',
+        code: 'ACC',
+        type: 'accessory',
+        depreciationYears: 1,
+        customFields: [
+          { label: 'Card Number', type: 'text' },
+        ],
+      },
+      {
+        name: 'Furniture',
+        code: 'FUR',
+        type: 'furniture',
+        depreciationYears: 5,
+        customFields: [
+          { label: 'Material', type: 'text' },
+          { label: 'Ergonomic', type: 'text' },
+        ],
+      },
+      {
+        name: 'Other',
+        code: 'OTH',
+        type: 'other',
+        depreciationYears: 3,
+        customFields: [
+          { label: 'Notes', type: 'text' },
+        ],
+      },
+    ];
+
+    const categoryMap = {};
+    for (const cat of assetCategoriesData) {
+      const catDoc = await AssetCategory.findOneAndUpdate(
+        { code: cat.code },
+        { $set: { ...cat, isActive: true } },
+        { upsert: true, new: true }
+      );
+      categoryMap[cat.code] = catDoc._id;
+    }
+    console.log(`  ✓ Synced ${assetCategoriesData.length} Asset Categories.`);
+
+    // 19.2 Seed 30 Hardware Assets (AST-0001 to AST-0030)
+    const assetRegisterSeed = [
+      // 1. CEO MacBook Pro 16"
+      {
+        assetTag: 'AST-0001',
+        name: 'Apple MacBook Pro 16" M3 Max',
+        catCode: 'LAP',
+        brand: 'Apple',
+        model: 'MacBook Pro 16 (Late 2023)',
+        serialNumber: 'C02G10ABC001',
+        purchaseDate: new Date('2024-01-20'),
+        purchaseCost: 28990000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2024-APL-010',
+        warrantyExpiry: new Date('2027-01-20'),
+        status: 'assigned',
+        condition: 'new',
+        assignee: ceoEmp?._id,
+        ackAccepted: true,
+        customValues: { RAM: '64 GB', Processor: 'Apple M3 Max (16-core)', Storage: '1 TB SSD' },
+      },
+      // 2. CTO MacBook Pro 14"
+      {
+        assetTag: 'AST-0002',
+        name: 'Apple MacBook Pro 14" M3 Pro',
+        catCode: 'LAP',
+        brand: 'Apple',
+        model: 'MacBook Pro 14 (Late 2023)',
+        serialNumber: 'C02G20ABC002',
+        purchaseDate: new Date('2024-01-20'),
+        purchaseCost: 19990000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2024-APL-011',
+        warrantyExpiry: new Date('2027-01-20'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: ctoEmp?._id,
+        ackAccepted: true,
+        customValues: { RAM: '36 GB', Processor: 'Apple M3 Pro (12-core)', Storage: '1 TB SSD' },
+      },
+      // 3. HR MacBook Air 15"
+      {
+        assetTag: 'AST-0003',
+        name: 'Apple MacBook Air 15" M2',
+        catCode: 'LAP',
+        brand: 'Apple',
+        model: 'MacBook Air 15 (Mid 2023)',
+        serialNumber: 'C02G30ABC003',
+        purchaseDate: new Date('2023-08-15'),
+        purchaseCost: 13490000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2023-APL-089',
+        warrantyExpiry: new Date('2026-08-15'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: hrEmp?._id,
+        ackAccepted: true,
+        customValues: { RAM: '16 GB', Processor: 'Apple M2 (8-core)', Storage: '512 GB SSD' },
+      },
+      // 4. PM MacBook Pro 16" (Warranty Expiring Soon in 18 Days!)
+      {
+        assetTag: 'AST-0004',
+        name: 'Apple MacBook Pro 16" M2 Pro',
+        catCode: 'LAP',
+        brand: 'Apple',
+        model: 'MacBook Pro 16 (Early 2023)',
+        serialNumber: 'C02G40ABC004',
+        purchaseDate: new Date('2023-03-01'),
+        purchaseCost: 24990000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2023-APL-025',
+        warrantyExpiry: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000), // Expiring in 18 days!
+        status: 'assigned',
+        condition: 'good',
+        assignee: pmEmp?._id,
+        ackAccepted: true,
+        customValues: { RAM: '32 GB', Processor: 'Apple M2 Pro (12-core)', Storage: '1 TB SSD' },
+      },
+      // 5. IT Admin MacBook Pro 14"
+      {
+        assetTag: 'AST-0005',
+        name: 'Apple MacBook Pro 14" M3 Pro',
+        catCode: 'LAP',
+        brand: 'Apple',
+        model: 'MacBook Pro 14 (Late 2023)',
+        serialNumber: 'C02G50ABC005',
+        purchaseDate: new Date('2024-02-10'),
+        purchaseCost: 19990000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2024-APL-034',
+        warrantyExpiry: new Date('2027-02-10'),
+        status: 'assigned',
+        condition: 'new',
+        assignee: itAdminEmp?._id,
+        ackAccepted: true,
+        customValues: { RAM: '36 GB', Processor: 'Apple M3 Pro', Storage: '1 TB SSD' },
+      },
+      // 6. Emp 1 MacBook Pro 16" (UNACKNOWLEDGED: for testing employee acknowledgement flow!)
+      {
+        assetTag: 'AST-0006',
+        name: 'Apple MacBook Pro 16" M3 Pro',
+        catCode: 'LAP',
+        brand: 'Apple',
+        model: 'MacBook Pro 16 (Late 2023)',
+        serialNumber: 'C02G60ABC006',
+        purchaseDate: new Date('2024-01-25'),
+        purchaseCost: 24990000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2024-APL-018',
+        warrantyExpiry: new Date('2027-01-25'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp1?._id,
+        ackAccepted: false, // Pending acknowledgement!
+        customValues: { RAM: '36 GB', Processor: 'Apple M3 Pro', Storage: '1 TB SSD' },
+      },
+      // 7. Emp 2 Dell XPS 15
+      {
+        assetTag: 'AST-0007',
+        name: 'Dell XPS 15 9530',
+        catCode: 'LAP',
+        brand: 'Dell',
+        model: 'XPS 15 9530 OLED',
+        serialNumber: 'DXPS15-88310',
+        purchaseDate: new Date('2023-11-10'),
+        purchaseCost: 18500000,
+        vendor: 'Dell Exclusive Store Saheed Nagar',
+        invoiceNumber: 'INV-DELL-2023-110',
+        warrantyExpiry: new Date('2026-11-10'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp2?._id,
+        ackAccepted: true,
+        customValues: { RAM: '32 GB DDR5', Processor: 'Intel Core i7-13700H', Storage: '1 TB PCIe NVMe' },
+      },
+      // 8. Emp 3 Lenovo ThinkPad X1 Carbon
+      {
+        assetTag: 'AST-0008',
+        name: 'Lenovo ThinkPad X1 Carbon Gen 11',
+        catCode: 'LAP',
+        brand: 'Lenovo',
+        model: 'ThinkPad X1 Carbon Gen 11',
+        serialNumber: 'TPX1-99210',
+        purchaseDate: new Date('2023-12-05'),
+        purchaseCost: 16500000,
+        vendor: 'Lenovo Flagship Store Chandrasekharpur',
+        invoiceNumber: 'INV-LEN-2023-882',
+        warrantyExpiry: new Date('2026-12-05'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp3?._id,
+        ackAccepted: true,
+        customValues: { RAM: '32 GB LPDDR5', Processor: 'Intel Core i7-1365U', Storage: '1 TB SSD' },
+      },
+      // 9. Emp 4 Apple MacBook Air 13" M2
+      {
+        assetTag: 'AST-0009',
+        name: 'Apple MacBook Air 13" M2',
+        catCode: 'LAP',
+        brand: 'Apple',
+        model: 'MacBook Air 13 (2022)',
+        serialNumber: 'C02G90ABC009',
+        purchaseDate: new Date('2023-06-18'),
+        purchaseCost: 10490000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2023-APL-067',
+        warrantyExpiry: new Date('2026-06-18'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp4?._id,
+        ackAccepted: true,
+        customValues: { RAM: '16 GB', Processor: 'Apple M2 (8-core)', Storage: '512 GB SSD' },
+      },
+      // 10. Emp 5 Dell Latitude 5440 (Warranty Expiring Soon in 24 Days!)
+      {
+        assetTag: 'AST-0010',
+        name: 'Dell Latitude 5440',
+        catCode: 'LAP',
+        brand: 'Dell',
+        model: 'Latitude 5440',
+        serialNumber: 'DLAT-54401',
+        purchaseDate: new Date('2023-03-08'),
+        purchaseCost: 8500000,
+        vendor: 'Dell Exclusive Store Saheed Nagar',
+        invoiceNumber: 'INV-DELL-2023-045',
+        warrantyExpiry: new Date(Date.now() + 24 * 24 * 60 * 60 * 1000), // Expiring in 24 days!
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp5?._id,
+        ackAccepted: true,
+        customValues: { RAM: '16 GB', Processor: 'Intel Core i5-1335U', Storage: '512 GB SSD' },
+      },
+      // 11. Emp 6 Lenovo ThinkPad T14
+      {
+        assetTag: 'AST-0011',
+        name: 'Lenovo ThinkPad T14 Gen 4',
+        catCode: 'LAP',
+        brand: 'Lenovo',
+        model: 'ThinkPad T14 Gen 4 AMD',
+        serialNumber: 'TPT14-3310',
+        purchaseDate: new Date('2023-10-15'),
+        purchaseCost: 9200000,
+        vendor: 'Lenovo Flagship Store Chandrasekharpur',
+        invoiceNumber: 'INV-LEN-2023-712',
+        warrantyExpiry: new Date('2026-10-15'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp6?._id,
+        ackAccepted: true,
+        customValues: { RAM: '16 GB DDR5', Processor: 'AMD Ryzen 7 PRO 7840U', Storage: '512 GB SSD' },
+      },
+      // 12. Emp 7 HP EliteBook 840
+      {
+        assetTag: 'AST-0012',
+        name: 'HP EliteBook 840 G10',
+        catCode: 'LAP',
+        brand: 'HP',
+        model: 'EliteBook 840 G10',
+        serialNumber: 'HPEB-84011',
+        purchaseDate: new Date('2023-09-20'),
+        purchaseCost: 8900000,
+        vendor: 'HP World Janpath',
+        invoiceNumber: 'INV-HP-2023-551',
+        warrantyExpiry: new Date('2026-09-20'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp7?._id,
+        ackAccepted: true,
+        customValues: { RAM: '16 GB DDR5', Processor: 'Intel Core i5-1340P', Storage: '512 GB SSD' },
+      },
+      // 13. Emp 8 Dell Latitude 3440
+      {
+        assetTag: 'AST-0013',
+        name: 'Dell Latitude 3440',
+        catCode: 'LAP',
+        brand: 'Dell',
+        model: 'Latitude 3440',
+        serialNumber: 'DLAT-34402',
+        purchaseDate: new Date('2023-11-28'),
+        purchaseCost: 7200000,
+        vendor: 'Dell Exclusive Store Saheed Nagar',
+        invoiceNumber: 'INV-DELL-2023-142',
+        warrantyExpiry: new Date('2026-11-28'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp8?._id,
+        ackAccepted: true,
+        customValues: { RAM: '16 GB', Processor: 'Intel Core i5-1335U', Storage: '512 GB SSD' },
+      },
+      // 14. Emp 1 External Monitor (Dell UltraSharp 27" 4K)
+      {
+        assetTag: 'AST-0014',
+        name: 'Dell UltraSharp 27" 4K USB-C Hub Monitor',
+        catCode: 'MON',
+        brand: 'Dell',
+        model: 'U2723QE',
+        serialNumber: 'CN02723-001',
+        purchaseDate: new Date('2024-01-10'),
+        purchaseCost: 5800000,
+        vendor: 'Dell Exclusive Store Saheed Nagar',
+        invoiceNumber: 'INV-DELL-2024-019',
+        warrantyExpiry: new Date('2027-01-10'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp1?._id,
+        ackAccepted: true,
+        customValues: { 'Screen Size': '27 inch', Resolution: '3840 x 2160 (4K UHD IPS Black)' },
+      },
+      // 15. Emp 2 External Monitor (LG UltraFine 32" Ergo)
+      {
+        assetTag: 'AST-0015',
+        name: 'LG UltraFine 32" 4K Ergo Monitor',
+        catCode: 'MON',
+        brand: 'LG',
+        model: '32UN880-B',
+        serialNumber: 'LG32UN-002',
+        purchaseDate: new Date('2023-10-12'),
+        purchaseCost: 4900000,
+        vendor: 'LG Best Shop Cuttack Road',
+        invoiceNumber: 'INV-LG-2023-994',
+        warrantyExpiry: new Date('2026-10-12'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp2?._id,
+        ackAccepted: true,
+        customValues: { 'Screen Size': '31.5 inch', Resolution: '3840 x 2160 HDR10 Ergo Arm' },
+      },
+      // 16. Emp 3 External Monitor (BenQ 27" Designer)
+      {
+        assetTag: 'AST-0016',
+        name: 'BenQ PD2705U 27" 4K Designer Monitor',
+        catCode: 'MON',
+        brand: 'BenQ',
+        model: 'PD2705U',
+        serialNumber: 'BNQ27-003',
+        purchaseDate: new Date('2023-11-05'),
+        purchaseCost: 4500000,
+        vendor: 'Amazon Business India',
+        invoiceNumber: 'INV-AMZ-2023-771',
+        warrantyExpiry: new Date('2026-11-05'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp3?._id,
+        ackAccepted: true,
+        customValues: { 'Screen Size': '27 inch', Resolution: '3840 x 2160 sRGB 99%' },
+      },
+      // 17. Studio Available Monitor (Dell UltraSharp 27" QHD)
+      {
+        assetTag: 'AST-0017',
+        name: 'Dell UltraSharp 27" QHD Monitor',
+        catCode: 'MON',
+        brand: 'Dell',
+        model: 'U2722D',
+        serialNumber: 'CN02722-004',
+        purchaseDate: new Date('2023-07-22'),
+        purchaseCost: 3800000,
+        vendor: 'Dell Exclusive Store Saheed Nagar',
+        invoiceNumber: 'INV-DELL-2023-088',
+        warrantyExpiry: new Date('2026-07-22'),
+        status: 'available',
+        condition: 'good',
+        assignee: null,
+        customValues: { 'Screen Size': '27 inch', Resolution: '2560 x 1440 QHD' },
+      },
+      // 18. Emp 1 Wacom Cintiq 16 Drawing Tablet
+      {
+        assetTag: 'AST-0018',
+        name: 'Wacom Cintiq 16 Creative Pen Display',
+        catCode: 'DTB',
+        brand: 'Wacom',
+        model: 'DTK-1660',
+        serialNumber: 'WAC-DTK1660-01',
+        purchaseDate: new Date('2023-08-30'),
+        purchaseCost: 5500000,
+        vendor: 'Amazon Business India',
+        invoiceNumber: 'INV-AMZ-2023-912',
+        warrantyExpiry: new Date('2025-08-30'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp1?._id,
+        ackAccepted: true,
+        customValues: { 'Active Area': '15.6 inch', 'Pen Pressure': '8192 levels' },
+      },
+      // 19. Studio Available Drawing Tablet
+      {
+        assetTag: 'AST-0019',
+        name: 'Huion Kamvas Pro 16 (4K)',
+        catCode: 'DTB',
+        brand: 'Huion',
+        model: 'Kamvas Pro 16 Plus (4K)',
+        serialNumber: 'HU-KAM16-02',
+        purchaseDate: new Date('2023-11-18'),
+        purchaseCost: 4200000,
+        vendor: 'Amazon Business India',
+        invoiceNumber: 'INV-AMZ-2023-1088',
+        warrantyExpiry: new Date('2025-11-18'),
+        status: 'available',
+        condition: 'good',
+        assignee: null,
+        customValues: { 'Active Area': '15.6 inch 4K QLED', 'Pen Pressure': '8192 levels' },
+      },
+      // 20. Studio Camera (Sony Alpha 7 IV)
+      {
+        assetTag: 'AST-0020',
+        name: 'Sony Alpha 7 IV Full-Frame Camera Kit',
+        catCode: 'CAM',
+        brand: 'Sony',
+        model: 'ILCE-7M4K with 24-70mm GM Lens',
+        serialNumber: 'SNY-A7M4-901',
+        purchaseDate: new Date('2023-05-14'),
+        purchaseCost: 27500000,
+        vendor: 'Sony Center Janpath Bhubaneswar',
+        invoiceNumber: 'INV-SNY-2023-055',
+        warrantyExpiry: new Date('2026-05-14'),
+        status: 'available',
+        condition: 'good',
+        assignee: null,
+        customValues: { Sensor: '33MP Full-Frame Exmor R CMOS', 'Lens Mount': 'Sony E-mount' },
+      },
+      // 21. Emp 4 Testing Device: iPhone 15 Pro
+      {
+        assetTag: 'AST-0021',
+        name: 'Apple iPhone 15 Pro 256GB (Studio Test Device)',
+        catCode: 'MOB',
+        brand: 'Apple',
+        model: 'iPhone 15 Pro (Natural Titanium)',
+        serialNumber: 'F2LX99881',
+        imei: '358912345678901',
+        purchaseDate: new Date('2023-10-01'),
+        purchaseCost: 12990000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2023-APL-112',
+        warrantyExpiry: new Date('2025-10-01'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp4?._id,
+        ackAccepted: true,
+        customValues: { OS: 'iOS 17.5', Storage: '256 GB', IMEI: '358912345678901' },
+      },
+      // 22. Studio Testing Device: Samsung Galaxy S24 Ultra
+      {
+        assetTag: 'AST-0022',
+        name: 'Samsung Galaxy S24 Ultra 256GB (Test Device)',
+        catCode: 'MOB',
+        brand: 'Samsung',
+        model: 'Galaxy S24 Ultra (Titanium Gray)',
+        serialNumber: 'SM-S928B-01',
+        imei: '358912345678902',
+        purchaseDate: new Date('2024-02-05'),
+        purchaseCost: 11990000,
+        vendor: 'Samsung Smart Plaza Master Canteen',
+        invoiceNumber: 'INV-SAM-2024-023',
+        warrantyExpiry: new Date('2026-02-05'),
+        status: 'available',
+        condition: 'good',
+        assignee: null,
+        customValues: { OS: 'Android 14 (One UI 6.1)', Storage: '256 GB', IMEI: '358912345678902' },
+      },
+      // 23. CEO Apple Magic Keyboard & Trackpad Combo
+      {
+        assetTag: 'AST-0023',
+        name: 'Apple Magic Keyboard with Touch ID & Numeric Keypad',
+        catCode: 'KBM',
+        brand: 'Apple',
+        model: 'Magic Keyboard A2520 Black',
+        serialNumber: 'MK-TID-001',
+        purchaseDate: new Date('2024-01-20'),
+        purchaseCost: 2750000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2024-APL-012',
+        warrantyExpiry: new Date('2025-01-20'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: ceoEmp?._id,
+        ackAccepted: true,
+        customValues: { Connectivity: 'Bluetooth / Lightning', 'Switch Type': 'Apple Scissor' },
+      },
+      // 24. Emp 3 Logitech MX Master 3S + Mechanical Combo
+      {
+        assetTag: 'AST-0024',
+        name: 'Logitech MX Mechanical + MX Master 3S Mouse',
+        catCode: 'KBM',
+        brand: 'Logitech',
+        model: 'MX Mechanical Tactile Quiet',
+        serialNumber: 'LOGI-MXM-002',
+        purchaseDate: new Date('2023-12-10'),
+        purchaseCost: 2200000,
+        vendor: 'Amazon Business India',
+        invoiceNumber: 'INV-AMZ-2023-1201',
+        warrantyExpiry: new Date('2025-12-10'),
+        status: 'assigned',
+        condition: 'good',
+        assignee: emp3?._id,
+        ackAccepted: true,
+        customValues: { Connectivity: 'Bluetooth / Logi Bolt', 'Switch Type': 'Tactile Quiet' },
+      },
+      // 25. Studio Available Noise Cancelling Headphones
+      {
+        assetTag: 'AST-0025',
+        name: 'Sony WH-1000XM5 Wireless ANC Headphones',
+        catCode: 'HPH',
+        brand: 'Sony',
+        model: 'WH-1000XM5 Silver',
+        serialNumber: 'SNY-WH5-001',
+        purchaseDate: new Date('2023-11-20'),
+        purchaseCost: 2990000,
+        vendor: 'Sony Center Janpath Bhubaneswar',
+        invoiceNumber: 'INV-SNY-2023-109',
+        warrantyExpiry: new Date('2025-11-20'),
+        status: 'available',
+        condition: 'good',
+        assignee: null,
+        customValues: { Type: 'Over-Ear Wireless', 'Noise Cancelling': 'Dual Processor V1 + HD QN1' },
+      },
+      // 26. Retired MacBook Pro 15" (Mid 2015)
+      {
+        assetTag: 'AST-0026',
+        name: 'Apple MacBook Pro 15" Retina (Mid 2015)',
+        catCode: 'LAP',
+        brand: 'Apple',
+        model: 'MacBook Pro 15 (Mid 2015)',
+        serialNumber: 'C02P15RET-01',
+        purchaseDate: new Date('2016-04-12'),
+        purchaseCost: 18000000,
+        vendor: 'Apple Reseller Delhi',
+        invoiceNumber: 'INV-LEGACY-001',
+        warrantyExpiry: new Date('2019-04-12'),
+        status: 'retired',
+        condition: 'poor',
+        assignee: null,
+        notes: 'Battery swelling and logic board vintage status; retired from active fleet.',
+        customValues: { RAM: '16 GB DDR3', Processor: 'Intel Core i7 2.5GHz Quad-Core', Storage: '512 GB SSD' },
+      },
+      // 27. Retired Dell UltraSharp 24" Monitor
+      {
+        assetTag: 'AST-0027',
+        name: 'Dell UltraSharp 24" Monitor',
+        catCode: 'MON',
+        brand: 'Dell',
+        model: 'U2414H',
+        serialNumber: 'CN02414-RET-02',
+        purchaseDate: new Date('2017-06-15'),
+        purchaseCost: 1800000,
+        vendor: 'CompuSystems Saheed Nagar',
+        invoiceNumber: 'INV-LEGACY-002',
+        warrantyExpiry: new Date('2020-06-15'),
+        status: 'retired',
+        condition: 'poor',
+        assignee: null,
+        notes: 'Backlight bleed and power supply buzzing; retired from active fleet.',
+        customValues: { 'Screen Size': '23.8 inch', Resolution: '1920 x 1080 FHD' },
+      },
+      // 28. Under Repair: Apple MacBook Pro 14" M1 Pro
+      {
+        assetTag: 'AST-0028',
+        name: 'Apple MacBook Pro 14" M1 Pro',
+        catCode: 'LAP',
+        brand: 'Apple',
+        model: 'MacBook Pro 14 (Late 2021)',
+        serialNumber: 'C02G14M1-REP1',
+        purchaseDate: new Date('2022-03-10'),
+        purchaseCost: 17500000,
+        vendor: 'Imagine Apple Premium Reseller (Bhubaneswar)',
+        invoiceNumber: 'INV-2022-APL-039',
+        warrantyExpiry: new Date('2025-03-10'),
+        status: 'under_repair',
+        condition: 'poor',
+        assignee: null,
+        notes: 'Sent to Apple Authorized Service Centre for liquid ingress keyboard replacement.',
+        customValues: { RAM: '16 GB', Processor: 'Apple M1 Pro', Storage: '512 GB SSD' },
+      },
+      // 29. Under Repair: LG UltraFine 27" 5K Display
+      {
+        assetTag: 'AST-0029',
+        name: 'LG UltraFine 27" 5K Display',
+        catCode: 'MON',
+        brand: 'LG',
+        model: '27MD5KL-B',
+        serialNumber: 'LG27MD-REP2',
+        purchaseDate: new Date('2022-08-15'),
+        purchaseCost: 8500000,
+        vendor: 'LG Best Shop Cuttack Road',
+        invoiceNumber: 'INV-LG-2022-441',
+        warrantyExpiry: new Date('2025-08-15'),
+        status: 'under_repair',
+        condition: 'fair',
+        assignee: null,
+        notes: 'Thunderbolt 3 controller failure; at LG Service Centre Cuttack Road.',
+        customValues: { 'Screen Size': '27 inch', Resolution: '5120 x 2880 (5K) IPS' },
+      },
+      // 30. Under Repair: Canon EOS R6 Mirrorless Body
+      {
+        assetTag: 'AST-0030',
+        name: 'Canon EOS R6 Mirrorless Camera Body',
+        catCode: 'CAM',
+        brand: 'Canon',
+        model: 'EOS R6 Body',
+        serialNumber: 'CAN-R6-REP3',
+        purchaseDate: new Date('2022-11-20'),
+        purchaseCost: 19500000,
+        vendor: 'Canon Image Square Saheed Nagar',
+        invoiceNumber: 'INV-CAN-2022-108',
+        warrantyExpiry: new Date('2025-11-20'),
+        status: 'under_repair',
+        condition: 'poor',
+        assignee: null,
+        notes: 'Shutter curtain jam error Err 20; sent to Canon India authorized service.',
+        customValues: { Sensor: '20.1MP Full-Frame Dual Pixel CMOS II', 'Lens Mount': 'Canon RF' },
+      },
+    ];
+
+    const seededAssetsMap = {};
+    for (const a of assetRegisterSeed) {
+      const assetDoc = await Asset.findOneAndUpdate(
+        { assetTag: a.assetTag },
+        {
+          $set: {
+            assetTag: a.assetTag,
+            name: a.name,
+            category: categoryMap[a.catCode],
+            brand: a.brand,
+            model: a.model,
+            serialNumber: a.serialNumber,
+            imei: a.imei || '',
+            purchaseDate: a.purchaseDate,
+            purchaseCost: a.purchaseCost,
+            vendor: a.vendor,
+            invoiceNumber: a.invoiceNumber,
+            warrantyExpiry: a.warrantyExpiry,
+            status: a.status,
+            condition: a.condition,
+            location: 'Bhubaneswar Studio - Patia',
+            currentAssignee: a.assignee || null,
+            customValues: a.customValues || {},
+            qrCodeValue: a.assetTag,
+            notes: a.notes || '',
+            isDeleted: false,
+          },
+        },
+        { upsert: true, new: true }
+      );
+      seededAssetsMap[a.assetTag] = assetDoc;
+
+      // Upsert AssetAssignment if assigned
+      if (a.assignee && a.status === 'assigned') {
+        let existingAssign = await AssetAssignment.findOne({
+          asset: assetDoc._id,
+          employee: a.assignee,
+          status: 'active',
+        });
+        if (!existingAssign) {
+          existingAssign = new AssetAssignment({
+            asset: assetDoc._id,
+            employee: a.assignee,
+            assignedBy: itAdminEmp?._id || ceoEmp?._id,
+            assignedAt: a.purchaseDate || new Date(),
+            conditionAtIssue: a.condition,
+            issueNotes: 'Official hardware issued for agency operations and creative deliverables.',
+            acknowledgement: {
+              accepted: a.ackAccepted !== undefined ? a.ackAccepted : true,
+              acceptedAt: a.ackAccepted ? new Date() : null,
+            },
+            status: 'active',
+          });
+          await existingAssign.save();
+        } else {
+          existingAssign.acknowledgement.accepted = a.ackAccepted !== undefined ? a.ackAccepted : true;
+          existingAssign.acknowledgement.acceptedAt = a.ackAccepted ? existingAssign.acknowledgement.acceptedAt || new Date() : null;
+          await existingAssign.save();
+        }
+      }
+    }
+    console.log(`  ✓ Synced ${assetRegisterSeed.length} Hardware Assets (AST-0001 to AST-0030) with active custody assignments.`);
+
+    // 19.3 Seed Maintenance Records for Under-Repair Assets
+    const ast28 = seededAssetsMap['AST-0028'];
+    if (ast28) {
+      await MaintenanceRecord.findOneAndUpdate(
+        { asset: ast28._id, issue: { $regex: 'Liquid spilled' } },
+        {
+          $set: {
+            asset: ast28._id,
+            ticketType: 'repair',
+            issue: 'Liquid spilled on top case causing sticky keyboard and trackpad malfunction',
+            reportedBy: emp3?._id || itAdminEmp?._id,
+            vendor: 'F1 Info Solutions (Apple Authorized)',
+            cost: 1850000, // Rs 18,500
+            status: 'in_progress',
+            startedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+            notes: 'Diagnostic completed. Waiting for top-case assembly parts from Apple Singapore hub.',
+          },
+        },
+        { upsert: true }
+      );
+    }
+
+    const ast29 = seededAssetsMap['AST-0029'];
+    if (ast29) {
+      await MaintenanceRecord.findOneAndUpdate(
+        { asset: ast29._id, issue: { $regex: 'Thunderbolt 3 board' } },
+        {
+          $set: {
+            asset: ast29._id,
+            ticketType: 'repair',
+            issue: 'Thunderbolt 3 board flickering and intermittent USB downstream disconnect',
+            reportedBy: itAdminEmp?._id || ceoEmp?._id,
+            vendor: 'LG Care Bhubaneswar',
+            cost: 1200000, // Rs 12,000
+            status: 'in_progress',
+            startedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+            notes: 'Main board ordered under extended warranty replacement.',
+          },
+        },
+        { upsert: true }
+      );
+    }
+
+    const ast30 = seededAssetsMap['AST-0030'];
+    if (ast30) {
+      await MaintenanceRecord.findOneAndUpdate(
+        { asset: ast30._id, issue: { $regex: 'Err 20 mechanical shutter' } },
+        {
+          $set: {
+            asset: ast30._id,
+            ticketType: 'repair',
+            issue: 'Err 20 mechanical shutter mechanism jam during video shoot',
+            reportedBy: emp2?._id || itAdminEmp?._id,
+            vendor: 'Canon India Pro Service Kolkata',
+            cost: 1500000, // Rs 15,000
+            status: 'open',
+            startedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+            notes: 'Awaiting shipping courier confirmation to service hub.',
+          },
+        },
+        { upsert: true }
+      );
+    }
+    console.log('  ✓ Synced 3 Active Maintenance & Repair Records.');
+
+    // 19.4 Seed 5 Enterprise Software Licenses (Encrypted Keys at Rest)
+    const softwareLicensesSeed = [
+      {
+        softwareName: 'Figma Enterprise',
+        vendor: 'Figma Inc.',
+        licenseType: 'per_user',
+        totalSeats: 50,
+        usedSeats: 42,
+        licenseKey: encryptLicenseKey('FIGMA-ENT-2026-X992-8812-ILLUSORY'),
+        renewalDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000), // Renewal in 20 days (triggers renewal alert!)
+        cost: 7500000, // Rs 75,000 / month
+        billingCycle: 'monthly',
+        status: 'active',
+        assignedTo: [
+          { employee: emp1?._id, assignedAt: new Date('2024-01-01') },
+          { employee: emp2?._id, assignedAt: new Date('2024-01-01') },
+          { employee: ctoEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: ceoEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: pmEmp?._id, assignedAt: new Date('2024-01-01') },
+        ],
+        notes: 'Studio-wide UI/UX vector design, design systems, and FigJam collaborative whiteboards.',
+      },
+      {
+        softwareName: 'Adobe Creative Cloud All Apps',
+        vendor: 'Adobe Systems India',
+        licenseType: 'per_user',
+        totalSeats: 25,
+        usedSeats: 20,
+        licenseKey: encryptLicenseKey('ADOBE-CC-PRO-VIP-991204-TEAM-ID8'),
+        renewalDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
+        cost: 12500000, // Rs 1,25,000 / month
+        billingCycle: 'monthly',
+        status: 'active',
+        assignedTo: [
+          { employee: emp1?._id, assignedAt: new Date('2024-01-01') },
+          { employee: emp2?._id, assignedAt: new Date('2024-01-01') },
+          { employee: ceoEmp?._id, assignedAt: new Date('2024-01-01') },
+        ],
+        notes: 'Photoshop, Illustrator, Premiere Pro, and After Effects team licenses.',
+      },
+      {
+        softwareName: 'Microsoft 365 Business Standard',
+        vendor: 'Microsoft Cloud Solution Provider',
+        licenseType: 'per_user',
+        totalSeats: 100,
+        usedSeats: 65,
+        licenseKey: encryptLicenseKey('MSFT-365-CSP-9988-1234-5678-PROD'),
+        renewalDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // Renewal in 14 days (triggers renewal alert!)
+        cost: 9500000,
+        billingCycle: 'annual',
+        status: 'active',
+        assignedTo: [
+          { employee: ceoEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: ctoEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: pmEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: hrEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: itAdminEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: emp1?._id, assignedAt: new Date('2024-01-01') },
+          { employee: emp2?._id, assignedAt: new Date('2024-01-01') },
+          { employee: emp3?._id, assignedAt: new Date('2024-01-01') },
+        ],
+        notes: 'Corporate email, OneDrive 1TB per user, and Office 365 apps.',
+      },
+      {
+        softwareName: 'GitHub Enterprise Cloud',
+        vendor: 'GitHub, Inc.',
+        licenseType: 'per_user',
+        totalSeats: 30,
+        usedSeats: 22,
+        licenseKey: encryptLicenseKey('GH-ENT-ORG-ILLUSORY-STUDIOS-TOKEN-XYZ990'),
+        renewalDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+        cost: 5400000,
+        billingCycle: 'annual',
+        status: 'active',
+        assignedTo: [
+          { employee: ctoEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: pmEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: itAdminEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: emp3?._id, assignedAt: new Date('2024-01-01') },
+          { employee: emp4?._id, assignedAt: new Date('2024-01-01') },
+        ],
+        notes: 'Private repositories, CI/CD Actions, and advanced code security audit logging.',
+      },
+      {
+        softwareName: 'Slack Enterprise Grid',
+        vendor: 'Slack Technologies LLC',
+        licenseType: 'per_user',
+        totalSeats: 100,
+        usedSeats: 80,
+        licenseKey: encryptLicenseKey('SLACK-GRID-WS-ILLUSORY-LIC-8811-OAUTH'),
+        renewalDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        cost: 6800000,
+        billingCycle: 'annual',
+        status: 'active',
+        assignedTo: [
+          { employee: ceoEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: ctoEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: pmEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: hrEmp?._id, assignedAt: new Date('2024-01-01') },
+          { employee: itAdminEmp?._id, assignedAt: new Date('2024-01-01') },
+        ],
+        notes: 'Real-time studio team communications, huddles, and channel integrations.',
+      },
+    ];
+
+    for (const lic of softwareLicensesSeed) {
+      await SoftwareLicense.findOneAndUpdate(
+        { softwareName: lic.softwareName },
+        { $set: { ...lic, isDeleted: false } },
+        { upsert: true }
+      );
+    }
+    console.log(`  ✓ Synced ${softwareLicensesSeed.length} Enterprise Software Licenses with encrypted keys.`);
+
+    // 19.5 Seed Asset Requests (1 Pending Approval, 1 Approved in "To Fulfil" Queue)
+    if (emp3 && categoryMap['KBM']) {
+      const existingReq1 = await AssetRequest.findOneAndUpdate(
+        { employee: emp3._id, category: categoryMap['KBM'], reason: { $regex: 'Mechanical split keyboard' } },
+        {
+          $set: {
+            employee: emp3._id,
+            category: categoryMap['KBM'],
+            reason: 'Mechanical split keyboard requested for ergonomics and wrist relief during sprint.',
+            neededBy: inTwoWeeks,
+            status: 'pending',
+          },
+        },
+        { upsert: true, new: true }
+      );
+
+      // Create linked approval request for emp3's request
+      let approvalReq1 = await ApprovalRequest.findOne({
+        type: 'asset_request',
+        referenceId: existingReq1._id,
+      });
+
+      if (!approvalReq1) {
+        approvalReq1 = await ApprovalRequest.create({
+          type: 'asset_request',
+          referenceModel: 'AssetRequest',
+          referenceId: existingReq1._id,
+          requestedBy: emp3._id,
+          title: `Asset Request: Keyboard/Mouse - Subham Sahoo`,
+          metadata: {
+            categoryName: 'Keyboard/Mouse',
+            reason: existingReq1.reason,
+            neededBy: existingReq1.neededBy,
+          },
+          steps: [
+            {
+              order: 1,
+              title: 'Manager Review',
+              approverEmployee: pmEmp?._id || ceoEmp?._id,
+              status: 'pending',
+            },
+          ],
+          currentStep: 1,
+          status: 'pending',
+        });
+      }
+      existingReq1.approvalRequest = approvalReq1._id;
+      await existingReq1.save();
+      console.log('  ✓ Seeded 1 Pending Asset Request with active Approval Workflow.');
+    }
+
+    if (emp5 && categoryMap['MOB']) {
+      await AssetRequest.findOneAndUpdate(
+        { employee: emp5._id, category: categoryMap['MOB'], reason: { $regex: 'Secondary Android testing device' } },
+        {
+          $set: {
+            employee: emp5._id,
+            category: categoryMap['MOB'],
+            reason: 'Secondary Android testing device required for verifying push notifications and release builds.',
+            neededBy: nextWeek,
+            status: 'approved',
+            approvedBy: pmEmp?._id || ceoEmp?._id,
+            approvedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          },
+        },
+        { upsert: true }
+      );
+      console.log('  ✓ Seeded 1 Approved Asset Request waiting in IT Fulfilment Queue.');
+    }
+
     console.log('\n================================================================');
-    console.log('🎉 DAY 4 SEED & RECONCILIATION COMPLETED SUCCESSFULLY!');
+    console.log('🎉 DAY 5 ASSETS, HARDWARE & LICENSING SEED COMPLETED SUCCESSFULLY!');
     console.log('================================================================');
     console.log('Default Password for all accounts: ChangeMe@123');
     console.log('  👑 Super Admins   : superadmin1..3@illusorydesignstudios.com');
     console.log('  📋 HR Manager    : hr@illusorydesignstudios.com');
+    console.log('  💻 IT Admin      : itadmin@illusorydesignstudios.com');
     console.log('  🎯 Project Manager: pm@illusorydesignstudios.com');
     console.log('  💼 Employees     : employee1..8@illusorydesignstudios.com');
     console.log('================================================================\n');

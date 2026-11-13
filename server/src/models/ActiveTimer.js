@@ -37,3 +37,4 @@ const activeTimerSchema = new mongoose.Schema(
 );
 
 export default mongoose.model('ActiveTimer', activeTimerSchema);
+

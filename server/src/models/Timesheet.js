@@ -66,3 +66,4 @@ timesheetSchema.index({ employee: 1, weekStart: 1 }, { unique: true });
 timesheetSchema.index({ status: 1, weekStart: 1 });
 
 export default mongoose.model('Timesheet', timesheetSchema);
+

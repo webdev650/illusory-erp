@@ -4,6 +4,10 @@ import Employee from '../models/Employee.js';
 import Holiday from '../models/Holiday.js';
 import Task from '../models/Task.js';
 import Timesheet from '../models/Timesheet.js';
+import Asset from '../models/Asset.js';
+import AssetAssignment from '../models/AssetAssignment.js';
+import SoftwareLicense from '../models/SoftwareLicense.js';
+import MaintenanceRecord from '../models/MaintenanceRecord.js';
 import { normalizeToKolkataMidnight } from '../utils/dateUtils.js';
 import { getWeekBounds } from './activity.service.js';
 import { notifyEmployee } from './notification.service.js';
@@ -196,6 +200,75 @@ export const initCronJobs = () => {
     }
   );
 
-  console.log('🕒 Node-Cron registered: Attendance (23:59 IST), Tasks (09:00 IST), Timesheet Reminders (Fri 17:00 & Mon 10:00 IST)');
+  // 5. Run daily at 09:00 AM Asia/Kolkata time: Asset & License expiry alerts
+  cron.schedule(
+    '0 9 * * *',
+    async () => {
+      console.log('⏰ [Cron] Running daily 9:00 AM asset & license alerts...');
+      try {
+        const now = new Date();
+        const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+        // 1. Warranties expiring in <= 30 days
+        const expiringWarranties = await Asset.find({
+          warrantyExpiry: { $gte: now, $lte: in30Days },
+          isDeleted: false,
+        }).select('name assetTag warrantyExpiry');
+
+        // 2. Licenses renewing in <= 30 days
+        const expiringLicenses = await SoftwareLicense.find({
+          renewalDate: { $gte: now, $lte: in30Days },
+          status: { $ne: 'cancelled' },
+        }).select('name vendor renewalDate');
+
+        // 3. Expected returns overdue
+        const overdueAssignments = await AssetAssignment.find({
+          status: 'active',
+          expectedReturnDate: { $lt: now },
+        })
+          .populate('asset', 'name assetTag')
+          .populate('employee', 'personal.firstName personal.lastName');
+
+        // 4. Assets under repair > 14 days
+        const longRepairAssets = await MaintenanceRecord.find({
+          status: { $in: ['open', 'in_progress'] },
+          startedAt: { $lt: fourteenDaysAgo },
+        }).populate('asset', 'name assetTag');
+
+        const totalAlerts =
+          expiringWarranties.length +
+          expiringLicenses.length +
+          overdueAssignments.length +
+          longRepairAssets.length;
+
+        if (totalAlerts > 0) {
+          // Find asset managers (IT & HR admins)
+          const managers = await Employee.find({
+            'employment.designation': { $regex: /IT|HR|Admin|Lead|Director/i },
+          }).limit(5);
+
+          for (const m of managers) {
+            await notifyEmployee(m._id, {
+              title: `Asset & License Alerts (${totalAlerts} items)`,
+              message: `${expiringWarranties.length} warranties expiring, ${expiringLicenses.length} license renewals, ${overdueAssignments.length} overdue returns, and ${longRepairAssets.length} prolonged repairs need attention.`,
+              link: '/assets?tab=overview',
+              type: 'asset_alert',
+            });
+          }
+          console.log(`✅ [Cron] Asset management alerts dispatched to ${managers.length} managers.`);
+        }
+      } catch (err) {
+        console.error('❌ [Cron Error] Asset alert job failed:', err.message);
+      }
+    },
+    {
+      timezone: 'Asia/Kolkata',
+    }
+  );
+
+  console.log(
+    '🕒 Node-Cron registered: Attendance (23:59 IST), Tasks & Assets (09:00 IST), Timesheet Reminders (Fri 17:00 & Mon 10:00 IST)'
+  );
 };
 

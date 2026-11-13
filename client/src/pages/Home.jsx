@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   CheckSquare,
   Briefcase,
+  Box,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -34,6 +35,8 @@ export const Home = () => {
   const [leaveBalances, setLeaveBalances] = useState([]);
   const [myTasksData, setMyTasksData] = useState({ today: [], thisWeek: [], overdue: [], all: [] });
   const [myProjects, setMyProjects] = useState([]);
+  const [pendingAssetAcks, setPendingAssetAcks] = useState([]);
+  const [assetAlertsCount, setAssetAlertsCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // Apply Leave Modal
@@ -65,17 +68,27 @@ export const Home = () => {
       if (holRes.success) setUpcomingHolidays(holRes.data);
 
       if (isAdminOrHr) {
-        const sumRes = await api.get('/dashboard/summary');
+        const [sumRes, assetSumRes] = await Promise.all([
+          api.get('/dashboard/summary'),
+          api.get('/assets/summary').catch(() => ({ success: false })),
+        ]);
         if (sumRes.success) setSummary(sumRes.data);
+        if (assetSumRes.success && assetSumRes.data) {
+          const alerts =
+            (assetSumRes.data.expiringWarranties || 0) +
+            (assetSumRes.data.expiringLicenses || 0);
+          setAssetAlertsCount(alerts);
+        }
       }
 
       // Fetch employee specific data
       if (user?.employee) {
-        const [balRes, typesRes, tasksRes, projsRes] = await Promise.all([
+        const [balRes, typesRes, tasksRes, projsRes, myAssetsRes] = await Promise.all([
           api.get('/hr/leave/balances'),
           api.get('/hr/leave/types'),
           api.get('/tasks/my'),
           api.get('/projects/my'),
+          api.get('/assets/my').catch(() => ({ success: false })),
         ]);
         if (balRes.success) setLeaveBalances(balRes.data);
         if (typesRes.success) {
@@ -84,6 +97,12 @@ export const Home = () => {
         }
         if (tasksRes.success) setMyTasksData(tasksRes.data);
         if (projsRes.success) setMyProjects(projsRes.data.projects || []);
+        if (myAssetsRes.success && myAssetsRes.data) {
+          const unacked = (myAssetsRes.data.currentAssets || []).filter(
+            (a) => !a.acknowledgement?.accepted
+          );
+          setPendingAssetAcks(unacked);
+        }
       }
     } catch (err) {
       console.warn('Dashboard fetch error', err);
@@ -148,6 +167,54 @@ export const Home = () => {
           </p>
         </div>
       </div>
+
+      {/* Items Waiting for My Acknowledgement Widget */}
+      {pendingAssetAcks.length > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-center gap-3">
+            <Box className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-amber-900 dark:text-amber-200">
+                Equipment Waiting for Your Acknowledgement ({pendingAssetAcks.length} item{pendingAssetAcks.length > 1 ? 's' : ''})
+              </p>
+              <p className="text-amber-700 dark:text-amber-300 mt-0.5">
+                {pendingAssetAcks
+                  .map((a) => `${a.asset?.name || 'Device'} (${a.asset?.assetTag || 'AST'})`)
+                  .join(', ')}
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/assets?tab=my_assets"
+            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs whitespace-nowrap self-start sm:self-center shadow-xs"
+          >
+            Review &amp; Accept
+          </Link>
+        </div>
+      )}
+
+      {/* Manager Asset Alerts Widget */}
+      {isAdminOrHr && assetAlertsCount > 0 && (
+        <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-center gap-3">
+            <Box className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-indigo-900 dark:text-indigo-200">
+                Asset &amp; Software Renewal Alerts
+              </p>
+              <p className="text-indigo-700 dark:text-indigo-300 mt-0.5">
+                {assetAlertsCount} equipment warranties or software license renewals need review this month.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/assets?tab=overview"
+            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs whitespace-nowrap self-start sm:self-center shadow-xs"
+          >
+            View Alerts
+          </Link>
+        </div>
+      )}
 
       {/* 3. Leave Balances Cards & Quick Actions (For Employees) */}
       {leaveBalances.length > 0 && (

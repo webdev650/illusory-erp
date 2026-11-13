@@ -5,6 +5,8 @@ import { AttendanceRegularization } from '../models/AttendanceRegularization.js'
 import { Holiday } from '../models/Holiday.js';
 import Timesheet from '../models/Timesheet.js';
 import TimeEntry from '../models/TimeEntry.js';
+import AssetRequest from '../models/AssetRequest.js';
+import Employee from '../models/Employee.js';
 import { recalculateTaskAndProjectTime } from './activity.service.js';
 import { notifyEmployee } from './notification.service.js';
 
@@ -15,6 +17,8 @@ export const handleWorkflowCompletion = async (approval, finalStatus, actedByUse
     await handleRegularizationCompletion(approval, finalStatus, actedByUser);
   } else if (approval.type === 'timesheet') {
     await handleTimesheetCompletion(approval, finalStatus, actedByUser);
+  } else if (approval.type === 'asset_request') {
+    await handleAssetRequestCompletion(approval, finalStatus, actedByUser);
   }
 };
 
@@ -151,4 +155,46 @@ const handleTimesheetCompletion = async (approval, finalStatus, actedByUser) => 
     type: 'timesheet',
   });
 };
+
+const handleAssetRequestCompletion = async (approval, finalStatus, actedByUser) => {
+  const request = await AssetRequest.findById(approval.referenceId).populate('category');
+  if (!request) return;
+
+  request.status = finalStatus === 'approved' ? 'approved' : 'rejected';
+  await request.save();
+
+  if (finalStatus === 'approved') {
+    // Notify requesting employee
+    await notifyEmployee(request.employee, {
+      title: 'Asset Request Approved',
+      message: `Your request for "${request.category?.name || 'Equipment'}" was approved by management. IT will fulfill and assign your device shortly.`,
+      link: '/assets?tab=my_assets',
+      type: 'asset',
+    });
+
+    // Notify HR & IT to fulfill from "To fulfil" queue
+    const itOrHr = await Employee.find({
+      'employment.designation': { $regex: /IT|HR|Admin/i },
+    }).limit(5);
+
+    for (const staff of itOrHr) {
+      await notifyEmployee(staff._id, {
+        title: 'New Asset Request to Fulfil',
+        message: `An approved asset request for "${request.category?.name}" is ready to be fulfilled.`,
+        link: '/assets?tab=to_fulfil',
+        type: 'asset_fulfil',
+      });
+    }
+  } else {
+    // Notify requesting employee of rejection
+    const comment = approval.steps?.find((s) => s.status === 'rejected')?.comment || '';
+    await notifyEmployee(request.employee, {
+      title: 'Asset Request Rejected',
+      message: `Your request for "${request.category?.name || 'Equipment'}" was rejected. Note: "${comment || 'Request was not approved by management'}"`,
+      link: '/assets?tab=my_assets',
+      type: 'asset',
+    });
+  }
+};
+
 

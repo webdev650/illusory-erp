@@ -150,3 +150,4 @@ export const getExpectedWeekHours = async (employeeId, weekStart, weekEnd) => {
     return 40;
   }
 };
+
