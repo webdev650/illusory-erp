@@ -160,3 +160,4 @@ export const ChartsWidget = ({ dragHandleProps }) => {
 };
 
 export default ChartsWidget;
+

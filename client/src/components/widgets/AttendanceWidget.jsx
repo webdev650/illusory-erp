@@ -428,3 +428,4 @@ export const AttendanceWidget = ({ onStatusChange }) => {
 };
 
 export default AttendanceWidget;
+

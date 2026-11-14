@@ -71,3 +71,4 @@ export const PendingApprovalsWidget = ({ dragHandleProps }) => {
 };
 
 export default PendingApprovalsWidget;
+

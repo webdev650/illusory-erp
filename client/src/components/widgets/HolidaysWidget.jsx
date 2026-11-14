@@ -60,3 +60,4 @@ export const HolidaysWidget = ({ dragHandleProps }) => {
 };
 
 export default HolidaysWidget;
+

@@ -15,3 +15,4 @@ router.put('/', updateMyPreferences);
 router.post('/reset-layout', resetHomeLayout);
 
 export default router;
+

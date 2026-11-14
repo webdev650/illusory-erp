@@ -120,3 +120,4 @@ export const AppsGridPopover = ({ isOpen, onClose }) => {
 };
 
 export default AppsGridPopover;
+

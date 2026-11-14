@@ -136,3 +136,4 @@ export const AttendanceRegularizeModal = ({
 };
 
 export default AttendanceRegularizeModal;
+

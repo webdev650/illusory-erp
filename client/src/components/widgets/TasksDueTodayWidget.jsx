@@ -95,3 +95,4 @@ export const TasksDueTodayWidget = ({ dragHandleProps }) => {
 };
 
 export default TasksDueTodayWidget;
+

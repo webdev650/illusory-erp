@@ -169,3 +169,4 @@ export const ApplyLeaveModal = ({ isOpen, onClose, onSuccess }) => {
 };
 
 export default ApplyLeaveModal;
+

@@ -59,3 +59,4 @@ export const AnnouncementsWidget = ({ dragHandleProps }) => {
 };
 
 export default AnnouncementsWidget;
+

@@ -78,3 +78,4 @@ export const resetHomeLayout = async (req, res, next) => {
     next(err);
   }
 };
+

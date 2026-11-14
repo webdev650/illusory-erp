@@ -84,3 +84,4 @@ export const CelebrationsWidget = ({ dragHandleProps }) => {
 };
 
 export default CelebrationsWidget;
+

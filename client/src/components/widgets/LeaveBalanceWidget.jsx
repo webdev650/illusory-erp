@@ -61,3 +61,4 @@ export const LeaveBalanceWidget = ({ dragHandleProps }) => {
 };
 
 export default LeaveBalanceWidget;
+

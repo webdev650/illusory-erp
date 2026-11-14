@@ -48,3 +48,4 @@ remoteWorkRequestSchema.index({ employee: 1, fromDate: 1, toDate: 1 });
 
 export const RemoteWorkRequest = mongoose.model('RemoteWorkRequest', remoteWorkRequestSchema);
 export default RemoteWorkRequest;
+

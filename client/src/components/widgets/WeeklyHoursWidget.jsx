@@ -109,3 +109,4 @@ export const WeeklyHoursWidget = ({ dragHandleProps }) => {
 };
 
 export default WeeklyHoursWidget;
+

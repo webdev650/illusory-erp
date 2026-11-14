@@ -67,3 +67,4 @@ export const HRKpiWidget = () => {
 };
 
 export default HRKpiWidget;
+

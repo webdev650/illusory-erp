@@ -68,3 +68,4 @@ export const TeamOnLeaveWidget = ({ dragHandleProps }) => {
 };
 
 export default TeamOnLeaveWidget;
+

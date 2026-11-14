@@ -104,3 +104,4 @@ export const WelcomeIllustration = ({ className = 'w-48 h-32' }) => {
 };
 
 export default WelcomeIllustration;
+
