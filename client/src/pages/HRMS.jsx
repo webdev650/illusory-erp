@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader, Button } from '../components/ui';
 import {
   Users,
   Search,
@@ -196,32 +197,28 @@ export const HRMS = () => {
   return (
     <div className="space-y-6">
       {/* Header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-            <Users className="w-6 h-6 text-brand-600" />
-            Employee Master Directory
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Total of {pagination.total} employees across all agency disciplines.
-          </p>
-        </div>
-
-        {hasPermission('employee.create') && (
-          <button
-            onClick={() => {
-              setStep(1);
-              setCreatedCredentials(null);
-              setFormError(null);
-              setIsAddModalOpen(true);
-            }}
-            className="inline-flex items-center justify-center px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-brand-500/20 transition-all"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Add New Employee
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Employee Master Directory"
+        subtitle={`Total of ${pagination.total} employees across all agency disciplines`}
+        breadcrumbs={[{ label: 'HRMS' }]}
+        actions={
+          hasPermission('employee.create') ? (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => {
+                setStep(1);
+                setCreatedCredentials(null);
+                setFormError(null);
+                setIsAddModalOpen(true);
+              }}
+            >
+              Add New Employee
+            </Button>
+          ) : null
+        }
+      />
 
       {/* Filter and Search Bar */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-3">

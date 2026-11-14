@@ -13,6 +13,7 @@ import projectRoutes from './project.routes.js';
 import taskRoutes from './task.routes.js';
 import activityRoutes from './activity.routes.js';
 import assetRoutes from './asset.routes.js';
+import preferenceRoutes from './preference.routes.js';
 
 const router = Router();
 
@@ -40,5 +41,6 @@ router.use('/projects', projectRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/activity', activityRoutes);
 router.use('/assets', assetRoutes);
+router.use('/preferences', preferenceRoutes);
 
 export default router;

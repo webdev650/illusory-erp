@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader, Button } from '../components/ui';
 import {
   Briefcase,
   Search,
@@ -211,30 +212,26 @@ export const Projects = () => {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-            <Briefcase className="w-6 h-6 text-brand-600" />
-            Projects & Engagements
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Design & tech client contracts, project lifecycles, deliverables, and team allocation
-          </p>
-        </div>
-
-        {canCreate && (
-          <button
-            onClick={() => {
-              setCurrentStep(1);
-              setIsCreateOpen(true);
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            New Project
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Projects & Engagements"
+        subtitle="Design & tech client contracts, project lifecycles, deliverables, and team allocation"
+        breadcrumbs={[{ label: 'Projects' }]}
+        actions={
+          canCreate ? (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => {
+                setCurrentStep(1);
+                setIsCreateOpen(true);
+              }}
+            >
+              New Project
+            </Button>
+          ) : null
+        }
+      />
 
       {/* KPI Stats Strip */}
       {summary && (

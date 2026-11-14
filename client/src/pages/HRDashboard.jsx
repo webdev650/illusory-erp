@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader, Button } from '../components/ui';
 import { AttendanceTrendChart } from '../components/AttendanceTrendChart';
 import {
   UserCheck,
@@ -245,18 +246,11 @@ export const HRDashboard = () => {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-            <UserCheck className="w-6 h-6 text-brand-600" />
-            HR Operations Hub
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Workforce attendance tracking, multi-tier leave approvals, studio holiday calendar, and announcements.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="HR Operations Hub"
+        subtitle="Workforce attendance tracking, multi-tier leave approvals, studio holiday calendar, and announcements"
+        breadcrumbs={[{ label: 'HR Operations' }]}
+        actions={
           <a
             href={`http://localhost:5000/api/v1/hr/attendance/all?format=csv`}
             download
@@ -265,8 +259,8 @@ export const HRDashboard = () => {
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Export CSV
           </a>
-        </div>
-      </div>
+        }
+      />
 
       {msg && (
         <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center gap-2">

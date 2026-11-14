@@ -6,6 +6,8 @@ import { requirePermission } from '../middleware/rbac.js';
 import {
   checkIn,
   checkOut,
+  breakIn,
+  breakOut,
   getTodayStatus,
   getMyMonthlyAttendance,
   getTeamAttendance,
@@ -13,6 +15,14 @@ import {
   requestRegularization,
   manualEditAttendance,
 } from '../controllers/attendance.controller.js';
+
+// Remote Work controllers
+import {
+  applyRemoteWork,
+  getMyRemoteWorkRequests,
+  getAllRemoteWorkRequests,
+  cancelRemoteWork,
+} from '../controllers/remoteWork.controller.js';
 
 // Leave controllers
 import {
@@ -56,12 +66,20 @@ router.get('/dashboard-metrics', requirePermission('hr.access'), getHRDashboardM
 // --- Attendance Endpoints ---
 router.post('/attendance/check-in', checkIn);
 router.post('/attendance/check-out', checkOut);
+router.post('/attendance/break-in', breakIn);
+router.post('/attendance/break-out', breakOut);
 router.get('/attendance/today', getTodayStatus);
 router.get('/attendance/my-monthly', getMyMonthlyAttendance);
 router.get('/attendance/team', getTeamAttendance);
 router.get('/attendance/all', requirePermission('attendance.read'), getAllAttendance);
 router.post('/attendance/regularization', requestRegularization);
 router.patch('/attendance/:id/manual-edit', requirePermission('attendance.manage'), manualEditAttendance);
+
+// --- Remote Work (WFH) Endpoints ---
+router.post('/remote-work/apply', applyRemoteWork);
+router.get('/remote-work/my', getMyRemoteWorkRequests);
+router.get('/remote-work/all', requirePermission('attendance.read'), getAllRemoteWorkRequests);
+router.patch('/remote-work/:id/cancel', cancelRemoteWork);
 
 // --- Leave Endpoints ---
 router.get('/leave/types', getLeaveTypes);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader, Card, Button, Badge } from '../components/ui';
 import {
   Settings,
   Users,
@@ -148,17 +149,11 @@ export const Configurations = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Settings className="w-6 h-6 text-brand-600" />
-            System Configurations & RBAC
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Manage user accounts, roles & permissions, and agency department structures.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Configurations & RBAC"
+        subtitle="Manage user accounts, roles & dynamic permissions, and studio department structures"
+        breadcrumbs={[{ label: 'Configurations' }]}
+      />
 
       {msg && (
         <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center gap-2">

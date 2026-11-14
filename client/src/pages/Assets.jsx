@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader, Button } from '../components/ui';
 import {
   Box,
   Plus,
@@ -660,56 +661,54 @@ export const Assets = () => {
   return (
     <div className="space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
-            <Box className="w-7 h-7 text-brand-600 dark:text-brand-400" />
-            Assets & Equipment Management
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Studio hardware registry, employee assignments, software licenses, maintenance & exit clearance
-          </p>
-        </div>
-
-        {/* Global Action */}
-        {activeTab === 'register' && canManageAssets && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setImportResult(null);
-                setImportModalOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 shadow-xs"
+      <PageHeader
+        title="Assets & Equipment Management"
+        subtitle="Studio hardware registry, employee assignments, software licenses, maintenance & exit clearance"
+        breadcrumbs={[{ label: 'Assets' }]}
+        actions={
+          activeTab === 'register' && canManageAssets ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Upload}
+                onClick={() => {
+                  setImportResult(null);
+                  setImportModalOpen(true);
+                }}
+              >
+                Bulk Import
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Plus}
+                onClick={handleOpenAddAsset}
+              >
+                Add Asset
+              </Button>
+            </div>
+          ) : activeTab === 'my_assets' ? (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => setRequestModalOpen(true)}
             >
-              <Upload className="w-4 h-4 text-slate-400" /> Bulk Import
-            </button>
-            <button
-              onClick={handleOpenAddAsset}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-xs"
+              Request Equipment
+            </Button>
+          ) : activeTab === 'licenses' && hasPermission('license.manage') ? (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => setAddLicenseModalOpen(true)}
             >
-              <Plus className="w-4 h-4" /> Add Asset
-            </button>
-          </div>
-        )}
-
-        {activeTab === 'my_assets' && (
-          <button
-            onClick={() => setRequestModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-xs"
-          >
-            <Plus className="w-4 h-4" /> Request Equipment
-          </button>
-        )}
-
-        {activeTab === 'licenses' && hasPermission('license.manage') && (
-          <button
-            onClick={() => setAddLicenseModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-xs"
-          >
-            <Plus className="w-4 h-4" /> Add License
-          </button>
-        )}
-      </div>
+              Add License
+            </Button>
+          ) : null
+        }
+      />
 
       {/* Tabs Navigation */}
       <div className="flex items-center space-x-1 border-b border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none">

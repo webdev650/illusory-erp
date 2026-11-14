@@ -82,8 +82,18 @@ export const checkOut = async (req, res, next) => {
     const serverNow = new Date();
     record.checkOut = serverNow;
 
-    const diffMs = serverNow - new Date(record.checkIn);
-    const workHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
+    // Auto-close any unclosed break
+    let totalBreakMs = 0;
+    if (record.breaks && record.breaks.length > 0) {
+      record.breaks.forEach((b) => {
+        if (!b.end) b.end = serverNow;
+        totalBreakMs += Math.max(0, new Date(b.end) - new Date(b.start));
+      });
+    }
+
+    const rawDiffMs = serverNow - new Date(record.checkIn);
+    const netDiffMs = Math.max(0, rawDiffMs - totalBreakMs);
+    const workHours = parseFloat((netDiffMs / (1000 * 60 * 60)).toFixed(2));
     record.workHours = workHours;
 
     const shift = (await Shift.findOne({ isDefault: true })) || {
@@ -101,7 +111,88 @@ export const checkOut = async (req, res, next) => {
     return sendSuccess(
       res,
       record,
-      `Checked out successfully at ${serverNow.toLocaleTimeString()} (Logged ${workHours} hrs)`
+      `Checked out successfully at ${serverNow.toLocaleTimeString()} (Logged ${workHours} hrs, Breaks: ${Math.round(totalBreakMs / 60000)}m)`
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/v1/hr/attendance/break-in
+export const breakIn = async (req, res, next) => {
+  try {
+    const employeeId = req.user.employee?._id;
+    if (!employeeId) {
+      return sendError(res, 'No linked employee record found', 400);
+    }
+
+    const todayMidnight = normalizeToKolkataMidnight(new Date());
+    const record = await Attendance.findOne({
+      employee: employeeId,
+      date: todayMidnight,
+    });
+
+    if (!record || !record.checkIn) {
+      return sendError(res, 'Please clock in first before taking a break', 400);
+    }
+    if (record.checkOut) {
+      return sendError(res, 'You have already clocked out for today', 400);
+    }
+
+    const openBreak = record.breaks?.find((b) => !b.end);
+    if (openBreak) {
+      return sendError(res, 'You are already on a break', 400);
+    }
+
+    const serverNow = new Date();
+    if (!record.breaks) record.breaks = [];
+    record.breaks.push({
+      start: serverNow,
+      reason: req.body.reason || 'Break',
+    });
+    await record.save();
+
+    return sendSuccess(
+      res,
+      record,
+      `Break started at ${serverNow.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/v1/hr/attendance/break-out
+export const breakOut = async (req, res, next) => {
+  try {
+    const employeeId = req.user.employee?._id;
+    if (!employeeId) {
+      return sendError(res, 'No linked employee record found', 400);
+    }
+
+    const todayMidnight = normalizeToKolkataMidnight(new Date());
+    const record = await Attendance.findOne({
+      employee: employeeId,
+      date: todayMidnight,
+    });
+
+    if (!record || !record.checkIn) {
+      return sendError(res, 'No clock in record found for today', 400);
+    }
+
+    const openBreak = record.breaks?.find((b) => !b.end);
+    if (!openBreak) {
+      return sendError(res, 'You are not currently on a break', 400);
+    }
+
+    const serverNow = new Date();
+    openBreak.end = serverNow;
+    await record.save();
+
+    return sendSuccess(
+      res,
+      record,
+      `Resumed from break at ${serverNow.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
     );
   } catch (err) {
     next(err);
@@ -116,10 +207,11 @@ export const getTodayStatus = async (req, res, next) => {
       return sendSuccess(res, null, 'No linked employee');
     }
 
-    const todayMidnight = normalizeToKolkataMidnight(new Date());
+    const targetDate = req.query.date ? new Date(req.query.date) : new Date();
+    const queryMidnight = normalizeToKolkataMidnight(targetDate);
     const record = await Attendance.findOne({
       employee: employeeId,
-      date: todayMidnight,
+      date: queryMidnight,
     });
 
     const shift = (await Shift.findOne({ isDefault: true })) || {

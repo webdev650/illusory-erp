@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader, Button, Badge } from '../components/ui';
 import {
   Building2,
   Search,
@@ -166,27 +167,18 @@ export const Clients = () => {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-            <Building2 className="w-6 h-6 text-brand-600" />
-            Client Directory
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Agency client accounts, contracted projects, industry verticals, and accounts
-          </p>
-        </div>
-
-        {canCreate && (
-          <button
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            Add New Client
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Client Directory"
+        subtitle="Agency client accounts, contracted projects, industry verticals, and GST details"
+        breadcrumbs={[{ label: 'Clients' }]}
+        actions={
+          canCreate ? (
+            <Button variant="primary" size="sm" icon={Plus} onClick={openCreateModal}>
+              Add New Client
+            </Button>
+          ) : null
+        }
+      />
 
       {/* Filter and Search Bar */}
       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">

@@ -25,6 +25,22 @@ const attendanceSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    breaks: [
+      {
+        start: {
+          type: Date,
+          required: true,
+        },
+        end: {
+          type: Date,
+          default: null,
+        },
+        reason: {
+          type: String,
+          default: 'Break',
+        },
+      },
+    ],
     status: {
       type: String,
       enum: ['present', 'absent', 'half_day', 'late', 'leave', 'holiday', 'weekend', 'wfh'],

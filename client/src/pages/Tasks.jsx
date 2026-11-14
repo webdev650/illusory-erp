@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader, Badge, Button } from '../components/ui';
 import { TaskModal } from '../components/TaskModal';
 import {
   CheckSquare,
@@ -95,17 +96,16 @@ export const Tasks = () => {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-            <CheckSquare className="w-6 h-6 text-brand-600" />
-            My Tasks & Deliverables
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Personal deliverables, sprint priorities, checklists, and deadline tracking
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="My Tasks & Deliverables"
+        subtitle="Personal deliverables, sprint priorities, checklists, and deadline tracking"
+        breadcrumbs={[{ label: 'Tasks' }]}
+        badge={
+          <Badge variant="brand" size="md">
+            {data.stats?.total || 0} tasks
+          </Badge>
+        }
+      />
 
       {/* KPI Stats Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

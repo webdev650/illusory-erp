@@ -1,10 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Brand palette - easily change here to rebrand the entire studio */
+  --brand-50:  #f5f3ff;
+  --brand-100: #ede9fe;
+  --brand-200: #ddd6fe;
+  --brand-300: #c4b5fd;
+  --brand-400: #a78bfa;
+  --brand-500: #8b5cf6;
+  --brand-600: #7c3aed;
+  --brand-700: #6d28d9;
+  --brand-800: #5b21b6;
+  --brand-900: #4c1d95;
+
+  /* Neutrals & Surfaces */
+  --page-bg: #F5F6FA;
+  --surface-card: #FFFFFF;
+  --border-subtle: #EBECEF;
+}
+
+.dark {
+  --page-bg: #0B0F19;
+  --surface-card: #151A26;
+  --border-subtle: #232938;
+}
+
 @layer base {
+  * {
+    border-color: var(--border-subtle);
+  }
   body {
-    @apply bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100;
+    background-color: var(--page-bg);
+    color: #1E293B;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .dark body {
+    background-color: var(--page-bg);
+    color: #E2E8F0;
   }
 }
 
@@ -20,7 +58,12 @@
   background: #cbd5e1;
   border-radius: 9999px;
 }
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
-
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

@@ -1,18 +1,62 @@
-# ✨ Illusory ERP — Day 5 Monorepo
+# ✨ Illusory ERP — Day 6 UI Redesign & Monorepo
 
 Custom Enterprise Resource Planning & Agency Operating System built for **Illusory Design Studios Pvt. Ltd.** (Bhubaneswar, Odisha, India).
 
 ---
 
+## 🎨 Day 6: Modern UI Redesign & Design System
+
+### 1. Brand Theming & Color Variables
+Change the brand identity across the entire ERP from a single location:
+```css
+/* client/src/index.css */
+:root {
+  --brand-50:  #f5f3ff;
+  --brand-100: #ede9fe;
+  --brand-500: #8b5cf6;   /* Primary Studio Accent */
+  --brand-600: #7c3aed;   /* Primary Button / Active Pill */
+  --brand-700: #6d28d9;
+  --page-bg:   #F5F6FA;   /* Soft clean page background */
+  --surface-card: #FFFFFF;
+}
+```
+
+### 2. Collapsible Sidebar with Color-Coded Module Tiles
+- **Fixed & Collapsible**: Collapse to icon-only mode with a single click (`preferences.sidebarCollapsed`).
+- **Favourites Section**: Star/pin any module directly from the sidebar. Favourites persist in MongoDB per user (`UserPreference`).
+- **Distinct Icon Tiles**: All 18 registered modules feature unique pastel rounded-square icon tiles.
+- **Menu Filter Search**: Instant client-side search to filter sidebar items.
+
+### 3. Top Navigation & Global Search
+- **Quick-Access Tabs**: Role-aware tabs with active underlines (Home, HR, Tasks, Reports, Approvals, Meetings, and an overflow `...` dropdown).
+- **Command Palette (`Ctrl+K` / `⌘K`)**: Fuzzy search employees, projects, tasks, and quick actions from anywhere in the app.
+- **Studio Calendar Popover**: Mini interactive calendar highlighting holidays, leaves, and tasks due.
+- **Apps-Grid Popover**: 3x3 / 4x4 app launcher grid of all agency modules.
+- **Live Punch Timer**: Running activity timer pill in navbar synced with server state.
+
+### 4. Modular Home Page & Drag-and-Drop Dashboard
+- **Two-Column Grid**: Left wide stack for configurable widgets; right narrow stack for fixed Attendance Widget and celebrations.
+- **Drag-to-Reorder**: Reorder widgets on the fly using `@dnd-kit`.
+- **Customize Drawer**: Show/hide individual widgets and reset layout to studio default (`POST /api/v1/preferences/reset-layout`).
+- **14 Permitted Widgets**: Welcome Banner with rotating daily greeting, KPI cards, My Open Tasks, Due Today / Overdue, My Active Projects, Weekly Hours, Leave Balances, Team on Leave, Pending Approvals, Studio Announcements, Odisha Holidays, Celebrations this week, and Recharts analytics.
+
+### 5. Attendance & Work-From-Home (WFH) System
+- **Break In / Break Out**: Auto-deducts break duration from net work hours and prevents overlapping breaks.
+- **Date Navigation**: Previous/next day arrows to view historical logs.
+- **Add Log / Regularization**: Opens approval request for missed check-in/out.
+- **Apply Remote Work**: Requisition WFH dates and justification routed to manager review. Automatically marks attendance status as `wfh` upon approval.
+
+---
+
 ## 🏗️ Architecture & Modules Overview
 
-Illusory ERP is organized into **16 core modules** defined in a shared architectural registry (`src/config/modules.js`):
+Illusory ERP is organized into **18 core modules** defined in a shared architectural registry (`src/config/modules.js`):
 
 | # | Module Key | Module Name | Status | Primary Permissions | Description |
 |---|---|---|---|---|---|
-| 1 | `home` | **Home** | 🟢 Live | Public (Auth) | Personal overview, live punch clock, leave balances, my open tasks, active projects, studio announcements, equipment acknowledgement alerts |
+| 1 | `home` | **Home** | 🟢 Live | Public (Auth) | Personal overview, customizable widget grid, live punch clock, leave balances, my open tasks, active projects, studio announcements |
 | 2 | `hrms` | **HRMS (Employee Master)** | 🟢 Live | `employee.read` | Master employee records, onboarding wizard, document vault, masked statutory fields, exit clearance checklist |
-| 3 | `hr` | **HR Operations** | 🟢 Live | `hr.access` | Attendance tracking, check-in/out, leave approvals, Odisha holiday calendar, 30-day analytics |
+| 3 | `hr` | **HR Operations** | 🟢 Live | `hr.access` | Attendance tracking, check-in/out/break, remote work, leave approvals, Odisha holiday calendar, 30-day analytics |
 | 4 | `projects` | **Projects** | 🟢 Live | `project.read` / `project.readOwn` | Client design & engineering contracts, milestone sign-offs, burn-rate tracking, team allocation |
 | 5 | `tasks` | **Tasks** | 🟢 Live | `task.read` / `task.readOwn` | 6-column Kanban board, sprint priorities, checklist progress, comments with @mentions, subtasks |
 | 6 | `clients` | **Clients** | 🟢 Live | `client.read` | Client directory, legal accounts, contact persons, GST numbers, and contracted project history |
@@ -26,7 +70,8 @@ Illusory ERP is organized into **16 core modules** defined in a shared architect
 | 14 | `support` | **Support Helpdesk** | 🟡 Soon | `support.read` | Internal ticketing system for IT, facilities, and HR queries with SLA escalation |
 | 15 | `utilities` | **Utilities** | 🟡 Soon | `utility.read` | Meeting room bookings, official company policy handbook, contract templates |
 | 16 | `configurations`| **Configurations** | 🟢 Live | `user.manage` | User management, password resets, dynamic RBAC permission keys, department CRUD |
-| 17 | `finance` | **Finance** | 🟡 Soon | `finance.viewAll` | Client GST invoicing, vendor bills, P&L ledgers, and bank reconciliation |
+| 17 | `meetings` | **Meetings** | 🟡 Soon | Public (Auth) | Studio syncs, sprint standups, Google Meet / Zoom links, room reservation |
+| 18 | `finance` | **Finance** | 🟡 Soon | `finance.viewAll` | Client GST invoicing, vendor bills, P&L ledgers, and bank reconciliation |
 
 ---
 

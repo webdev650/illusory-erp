@@ -37,7 +37,7 @@ const approvalRequestSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ['leave', 'expense', 'travel', 'asset', 'asset_request', 'regularization', 'timesheet', 'other'],
+      enum: ['leave', 'expense', 'travel', 'asset', 'asset_request', 'regularization', 'timesheet', 'remote_work', 'other'],
       index: true,
     },
     referenceModel: {

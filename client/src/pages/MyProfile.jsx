@@ -16,6 +16,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PageHeader, Button } from '../components/ui';
 
 export const MyProfile = () => {
   const { user, role } = useAuth();
@@ -123,15 +124,11 @@ export const MyProfile = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-          <User className="w-6 h-6 text-brand-600" />
-          My Profile & Self-Service
-        </h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Review your official employment details and keep your contact and emergency information updated.
-        </p>
-      </div>
+      <PageHeader
+        title="My Profile & Self-Service"
+        subtitle="Review your official employment details and keep your contact and emergency information updated"
+        breadcrumbs={[{ label: 'My Profile' }]}
+      />
 
       {msg && (
         <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center gap-2">

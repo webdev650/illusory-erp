@@ -6,6 +6,7 @@ import { Holiday } from '../models/Holiday.js';
 import Timesheet from '../models/Timesheet.js';
 import TimeEntry from '../models/TimeEntry.js';
 import AssetRequest from '../models/AssetRequest.js';
+import RemoteWorkRequest from '../models/RemoteWorkRequest.js';
 import Employee from '../models/Employee.js';
 import { recalculateTaskAndProjectTime } from './activity.service.js';
 import { notifyEmployee } from './notification.service.js';
@@ -19,6 +20,8 @@ export const handleWorkflowCompletion = async (approval, finalStatus, actedByUse
     await handleTimesheetCompletion(approval, finalStatus, actedByUser);
   } else if (approval.type === 'asset_request') {
     await handleAssetRequestCompletion(approval, finalStatus, actedByUser);
+  } else if (approval.type === 'remote_work') {
+    await handleRemoteWorkCompletion(approval, finalStatus, actedByUser);
   }
 };
 
@@ -196,5 +199,58 @@ const handleAssetRequestCompletion = async (approval, finalStatus, actedByUser) 
     });
   }
 };
+
+const handleRemoteWorkCompletion = async (approval, finalStatus, actedByUser) => {
+  const req = await RemoteWorkRequest.findById(approval.referenceId);
+  if (!req) return;
+
+  req.status = finalStatus;
+  await req.save();
+
+  if (finalStatus === 'approved') {
+    const start = new Date(req.fromDate);
+    const end = new Date(req.toDate);
+    const cur = new Date(start);
+
+    while (cur <= end) {
+      const day = cur.getDay();
+      // Skip Sundays (0) if standard weekend
+      if (day !== 0) {
+        const dateOnly = new Date(cur);
+        dateOnly.setHours(0, 0, 0, 0);
+
+        await Attendance.findOneAndUpdate(
+          { employee: req.employee, date: dateOnly },
+          {
+            $set: {
+              status: 'wfh',
+              note: `Approved Remote Work: ${req.reason || 'WFH'}`,
+              location: 'Remote / Work From Home',
+              source: 'manual',
+            },
+          },
+          { upsert: true, new: true }
+        );
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    await notifyEmployee(req.employee, {
+      title: 'Remote Work Approved ✅',
+      message: `Your remote work request from ${new Date(req.fromDate).toLocaleDateString()} to ${new Date(req.toDate).toLocaleDateString()} has been approved.`,
+      link: '/',
+      type: 'approval',
+    });
+  } else if (finalStatus === 'rejected') {
+    const comment = approval.steps?.find((s) => s.status === 'rejected')?.comment || '';
+    await notifyEmployee(req.employee, {
+      title: 'Remote Work Request Rejected',
+      message: `Your remote work request was not approved. ${comment ? `Note: "${comment}"` : ''}`,
+      link: '/',
+      type: 'approval',
+    });
+  }
+};
+
 
 

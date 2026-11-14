@@ -199,7 +199,22 @@ const seedDatabase = async () => {
       },
       { upsert: true }
     );
-    console.log('  ✓ Leave, Attendance & Asset Request workflows registered');
+
+    await WorkflowConfig.findOneAndUpdate(
+      { type: 'remote_work' },
+      {
+        $set: {
+          name: 'Remote Work (WFH) Approval',
+          description: 'Reporting Manager approval for work-from-home requests',
+          steps: [
+            { order: 1, name: 'Reporting Manager Review', approverType: 'manager' },
+          ],
+          isActive: true,
+        },
+      },
+      { upsert: true }
+    );
+    console.log('  ✓ Leave, Attendance, Asset Request & Remote Work workflows registered');
 
     // 5. Leave Types
     console.log('\n--- 5. Syncing Leave Types ---');

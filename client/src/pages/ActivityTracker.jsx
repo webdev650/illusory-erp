@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useTimer } from '../context/TimerContext';
+import { PageHeader, Button } from '../components/ui';
 import {
   Clock,
   Play,
@@ -706,33 +707,24 @@ export const ActivityTracker = () => {
   return (
     <div className="space-y-6">
       {/* Page Title & Navigation Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
-            <Clock className="w-7 h-7 text-brand-600 dark:text-brand-400" />
-            Activity Tracker
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Log billable hours, manage timesheets, track live timer, and review studio capacity
-          </p>
-        </div>
-
-        {/* Action Button */}
-        {activeTab === 'my_time' && (
-          <button
-            onClick={() => handleOpenAddEntry()}
-            disabled={isTimesheetLocked}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shadow-xs transition-all ${
-              isTimesheetLocked
-                ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800'
-                : 'bg-brand-600 hover:bg-brand-700 text-white hover:shadow-md'
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            Log Time
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Activity Tracker"
+        subtitle="Log billable hours, manage timesheets, track live timer, and review studio capacity"
+        breadcrumbs={[{ label: 'Activity Tracker' }]}
+        actions={
+          activeTab === 'my_time' ? (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => handleOpenAddEntry()}
+              disabled={isTimesheetLocked}
+            >
+              Log Time
+            </Button>
+          ) : null
+        }
+      />
 
       {/* Tabs Header */}
       <div className="flex items-center space-x-1 border-b border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none">

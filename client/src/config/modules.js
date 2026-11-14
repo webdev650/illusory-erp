@@ -215,6 +215,21 @@ export const ERP_MODULES = [
     description: 'User access controls, dynamic role permissions matrix, and department management',
   },
   {
+    key: 'meetings',
+    label: 'Meetings',
+    icon: 'Video',
+    path: '/modules/meetings',
+    status: 'soon',
+    requiredPermission: null,
+    description: 'Studio syncs, sprint standups, client calls, calendar invites, and room booking',
+    plannedFeatures: [
+      'Studio syncs, sprint standups, and client video calls',
+      'Integration with Google Meet, Zoom, and Teams',
+      'Studio meeting room and sound booth reservation calendar',
+      'Meeting minutes and action items linked to project tasks',
+    ],
+  },
+  {
     key: 'finance',
     label: 'Finance',
     icon: 'DollarSign',
