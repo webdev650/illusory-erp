@@ -1,0 +1,174 @@
+{
+  "info": {
+    "_postman_id": "illusory-erp-api-collection-v1",
+    "name": "Illusory ERP API",
+    "description": "Comprehensive Postman API Collection for Illusory ERP (Illusory Design Studios Pvt. Ltd.)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api/v1", "type": "string" },
+    { "key": "authToken", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check (Liveness)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "Ready Check (Readiness)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/ready", "host": ["{{baseUrl}}"], "path": ["ready"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login - Super Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('authToken', json.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin1@illusorydesignstudios.com\",\n  \"password\": \"ChangeMe@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login - HR Manager",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"hr@illusorydesignstudios.com\",\n  \"password\": \"ChangeMe@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Get Current Session (/me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Preferences",
+      "item": [
+        {
+          "name": "Get Preferences",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "{{baseUrl}}/preferences", "host": ["{{baseUrl}}"], "path": ["preferences"] }
+          }
+        },
+        {
+          "name": "Update Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"theme\": \"light\",\n  \"sidebarCollapsed\": false,\n  \"pinnedModules\": [\"hr\", \"tasks\", \"assets\"]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/preferences", "host": ["{{baseUrl}}"], "path": ["preferences"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "HR & Attendance",
+      "item": [
+        {
+          "name": "Get Today Attendance",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "{{baseUrl}}/hr/attendance/today", "host": ["{{baseUrl}}"], "path": ["hr", "attendance", "today"] }
+          }
+        },
+        {
+          "name": "Clock In",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "{{baseUrl}}/hr/attendance/check-in", "host": ["{{baseUrl}}"], "path": ["hr", "attendance", "check-in"] }
+          }
+        },
+        {
+          "name": "Start Break",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Lunch\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/hr/attendance/break-in", "host": ["{{baseUrl}}"], "path": ["hr", "attendance", "break-in"] }
+          }
+        },
+        {
+          "name": "End Break",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "{{baseUrl}}/hr/attendance/break-out", "host": ["{{baseUrl}}"], "path": ["hr", "attendance", "break-out"] }
+          }
+        },
+        {
+          "name": "Clock Out",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "{{baseUrl}}/hr/attendance/check-out", "host": ["{{baseUrl}}"], "path": ["hr", "attendance", "check-out"] }
+          }
+        }
+      ]
+    }
+  ]
+}

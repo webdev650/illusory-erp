@@ -1,3 +1,5 @@
+import { logger } from '../utils/logger.js';
+
 export class AppError extends Error {
   constructor(message, statusCode = 500, errors = null) {
     super(message);
@@ -27,10 +29,10 @@ export const errorHandler = (err, req, res, next) => {
   }
 
   // Handle Zod Error
-  if (err.name === 'ZodError') {
+  if (err.name === 'ZodError' || (err.issues && Array.isArray(err.issues))) {
     statusCode = 400;
     message = 'Validation Error';
-    errors = err.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
+    errors = (err.issues || []).map((i) => `${i.path.join('.')}: ${i.message}`);
   }
 
   // Handle CastError (invalid ObjectId)
@@ -39,14 +41,39 @@ export const errorHandler = (err, req, res, next) => {
     message = `Invalid ID format for ${err.path}`;
   }
 
-  if (process.env.NODE_ENV === 'development') {
-    console.error(`[Error] ${req.method} ${req.url}:`, err);
+  // Handle JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    message = 'Invalid authentication token';
+  } else if (err.name === 'TokenExpiredError') {
+    statusCode = 401;
+    message = 'Authentication token expired. Please log in again.';
+  }
+
+  // Handle Multer upload errors
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      message = 'Uploaded file exceeds the maximum allowed size (5MB).';
+    } else {
+      message = `File upload error: ${err.message}`;
+    }
+  }
+
+  // Log error using structured logger
+  if (statusCode >= 500) {
+    logger.error({ err, requestId: req.id, url: req.originalUrl, method: req.method }, message);
+  } else {
+    logger.warn({ err: err.message, requestId: req.id, url: req.originalUrl, statusCode }, message);
   }
 
   res.status(statusCode).json({
     success: false,
     message,
     ...(errors && { errors }),
+    requestId: req.id,
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };
+
+export default errorHandler;

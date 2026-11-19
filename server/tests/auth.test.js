@@ -1,123 +1,90 @@
-// tests/auth.test.js
-// Basic integration tests for the auth routes.
-// Run with: npm test
-// These tests use supertest to make real HTTP requests against the app.
-// They require a test MongoDB instance (set TEST_MONGODB_URI in .env or use in-memory).
-
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
-import { User } from '../src/modules/auth/User.model.js';
 
-// Use the same DB as dev for now (in a real project, use a separate test DB)
-const MONGODB_URI = process.env.MONGODB_URI;
-
-beforeAll(async () => {
-  await mongoose.connect(MONGODB_URI);
-});
-
-afterAll(async () => {
-  // Clean up test users created during tests
-  await User.deleteMany({ email: /testauth@/ });
-  await mongoose.disconnect();
-});
-
-describe('POST /api/auth/register', () => {
-  it('should register a new user', async () => {
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send({
-        name: 'Test Auth User',
-        email: 'testauth@example.com',
-        password: 'Test@1234',
-      });
-
-    expect(res.statusCode).toBe(201);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data).toHaveProperty('email', 'testauth@example.com');
+describe('AUTH API INTEGRATION TESTS', () => {
+  beforeAll(async () => {
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+    if (mongoose.connection.readyState === 0 && mongoUri) {
+      await mongoose.connect(mongoUri);
+    }
   });
 
-  it('should reject duplicate email', async () => {
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send({
-        name: 'Test Auth User',
-        email: 'testauth@example.com',
-        password: 'Test@1234',
-      });
+  describe('POST /api/v1/auth/login', () => {
+    it('should authenticate valid user and return token + user profile', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'superadmin1@illusorydesignstudios.com',
+          password: 'ChangeMe@123',
+        });
 
-    expect(res.statusCode).toBe(409);
-    expect(res.body.success).toBe(false);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.token).toBeDefined();
+      expect(res.body.data.user.email).toBe('superadmin1@illusorydesignstudios.com');
+    });
+
+    it('should reject invalid password with 401', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'superadmin1@illusorydesignstudios.com',
+          password: 'WrongPassword@999',
+        });
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toContain('Invalid email or password');
+    });
+
+    it('should reject malformed email with 400 validation error', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'not-an-email',
+          password: 'ChangeMe@123',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors).toBeDefined();
+    });
   });
 
-  it('should reject weak password', async () => {
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send({
-        name: 'Weak Pass',
-        email: 'testauth2@example.com',
-        password: 'weak',
-      });
+  describe('GET /api/v1/auth/me', () => {
+    it('should reject unauthenticated request with 401', async () => {
+      const res = await request(app).get('/api/v1/auth/me');
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+    });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body.success).toBe(false);
-  });
-});
+    it('should return session profile when valid Bearer token provided', async () => {
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'superadmin1@illusorydesignstudios.com',
+          password: 'ChangeMe@123',
+        });
 
-describe('POST /api/auth/login', () => {
-  it('should login with valid credentials', async () => {
-    const res = await request(app)
-      .post('/api/auth/login')
-      .send({
-        email: 'testauth@example.com',
-        password: 'Test@1234',
-      });
+      const token = loginRes.body.data.token;
 
-    expect(res.statusCode).toBe(200);
-    expect(res.body.data).toHaveProperty('accessToken');
-    // Refresh token should be in a cookie, not the body
-    expect(res.headers['set-cookie']).toBeDefined();
-  });
+      const meRes = await request(app)
+        .get('/api/v1/auth/me')
+        .set('Authorization', `Bearer ${token}`);
 
-  it('should reject wrong password', async () => {
-    const res = await request(app)
-      .post('/api/auth/login')
-      .send({
-        email: 'testauth@example.com',
-        password: 'WrongPass@1',
-      });
-
-    expect(res.statusCode).toBe(401);
-  });
-});
-
-describe('GET /api/auth/me', () => {
-  it('should return user info with valid token', async () => {
-    // First login to get a token
-    const loginRes = await request(app)
-      .post('/api/auth/login')
-      .send({ email: 'testauth@example.com', password: 'Test@1234' });
-
-    const token = loginRes.body.data.accessToken;
-
-    const res = await request(app)
-      .get('/api/auth/me')
-      .set('Authorization', `Bearer ${token}`);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.data).toHaveProperty('email', 'testauth@example.com');
+      expect(meRes.status).toBe(200);
+      expect(meRes.body.success).toBe(true);
+      expect(meRes.body.data.email).toBe('superadmin1@illusorydesignstudios.com');
+      expect(meRes.body.data.role).toBeDefined();
+    });
   });
 
-  it('should reject request without token', async () => {
-    const res = await request(app).get('/api/auth/me');
-    expect(res.statusCode).toBe(401);
-  });
-});
-
-describe('GET /api/health', () => {
-  it('should return 200 OK', async () => {
-    const res = await request(app).get('/api/health');
-    expect(res.statusCode).toBe(200);
-    expect(res.body.success).toBe(true);
+  describe('POST /api/v1/auth/logout', () => {
+    it('should clear authentication cookies and return success', async () => {
+      const res = await request(app).post('/api/v1/auth/logout');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
   });
 });

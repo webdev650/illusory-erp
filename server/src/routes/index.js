@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import healthRoutes from './health.routes.js';
 import authRoutes from './auth.routes.js';
 import employeeRoutes from './employee.routes.js';
 import departmentRoutes from './department.routes.js';
@@ -17,14 +18,8 @@ import preferenceRoutes from './preference.routes.js';
 
 const router = Router();
 
-// Health check
-router.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Illusory ERP API v1 is operational 🚀',
-    timestamp: new Date(),
-  });
-});
+// Liveness & readiness probes
+router.use('/', healthRoutes);
 
 // Mount modular sub-routes
 router.use('/auth', authRoutes);
