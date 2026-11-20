@@ -44,6 +44,10 @@ const userPreferenceSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    dashboards: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   { timestamps: true }
 );

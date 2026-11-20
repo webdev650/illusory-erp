@@ -15,6 +15,7 @@ import taskRoutes from './task.routes.js';
 import activityRoutes from './activity.routes.js';
 import assetRoutes from './asset.routes.js';
 import preferenceRoutes from './preference.routes.js';
+import hrmsDashboardRoutes from './hrmsDashboard.routes.js';
 
 const router = Router();
 
@@ -24,6 +25,8 @@ router.use('/', healthRoutes);
 // Mount modular sub-routes
 router.use('/auth', authRoutes);
 router.use('/employees', employeeRoutes);
+router.use('/hrms/dashboard', hrmsDashboardRoutes);
+router.use('/hrms', hrmsDashboardRoutes);
 router.use('/departments', departmentRoutes);
 router.use('/roles', roleRoutes);
 router.use('/users', userRoutes);

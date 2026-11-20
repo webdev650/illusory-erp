@@ -26,7 +26,7 @@ export const getMyPreferences = async (req, res, next) => {
 export const updateMyPreferences = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const { homeLayout, hiddenWidgets, pinnedModules, theme, sidebarCollapsed } = req.body;
+    const { homeLayout, hiddenWidgets, pinnedModules, theme, sidebarCollapsed, dashboards } = req.body;
 
     const updates = {};
     if (homeLayout !== undefined) updates.homeLayout = homeLayout;
@@ -34,6 +34,7 @@ export const updateMyPreferences = async (req, res, next) => {
     if (pinnedModules !== undefined) updates.pinnedModules = pinnedModules;
     if (theme !== undefined) updates.theme = theme;
     if (sidebarCollapsed !== undefined) updates.sidebarCollapsed = sidebarCollapsed;
+    if (dashboards !== undefined) updates.dashboards = dashboards;
 
     const pref = await UserPreference.findOneAndUpdate(
       { user: userId },

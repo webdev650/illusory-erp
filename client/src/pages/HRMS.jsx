@@ -22,6 +22,8 @@ import {
   User,
   ArrowRight,
   FileSpreadsheet,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 
 export const HRMS = () => {
@@ -29,6 +31,7 @@ export const HRMS = () => {
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('table');
   const [pagination, setPagination] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
 
   // Filters
@@ -270,10 +273,124 @@ export const HRMS = () => {
             <option value="terminated">Terminated</option>
             <option value="inactive">Inactive</option>
           </select>
+
+          {/* Card / Table View Toggle */}
+          <div className="flex bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-1.5 rounded-lg transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              title="Table View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`p-1.5 rounded-lg transition-colors ${
+                viewMode === 'cards'
+                  ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              title="Grid Cards View"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Employee Table */}
+      {/* Employee Cards or Table */}
+      {viewMode === 'cards' ? (
+        <div>
+          {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-brand-600 mb-2" />
+              <p className="text-xs text-slate-400">Loading master records...</p>
+            </div>
+          ) : employees.length === 0 ? (
+            <div className="py-16 text-center text-slate-400 text-xs bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-8">
+              No employees match the specified criteria.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {employees.map((emp) => (
+                <div
+                  key={emp._id}
+                  className="bg-white dark:bg-[#151A26] rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-2xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white font-bold text-sm flex items-center justify-center shadow-md shadow-brand-500/20 flex-shrink-0">
+                          {emp.personal?.firstName?.charAt(0)}
+                        </div>
+                        <div className="truncate">
+                          <h3 className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                            {emp.personal?.firstName} {emp.personal?.lastName}
+                          </h3>
+                          <p className="text-xs text-brand-600 dark:text-brand-400 font-medium truncate">
+                            {emp.employment?.designation}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusBadge(
+                          emp.status
+                        )}`}
+                      >
+                        {emp.status}
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">ID:</span>
+                        <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
+                          {emp.employeeId}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Department:</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-200">
+                          {emp.employment?.department?.name || 'Unassigned'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Work Mode:</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-200">
+                          {emp.employment?.workMode || 'On-site'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <Link
+                      to={`/hrms/employees/${emp._id}`}
+                      className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center space-x-1"
+                    >
+                      <span>View Profile</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                    {hasPermission('employee.delete') && (
+                      <button
+                        onClick={() => handleDelete(emp._id, emp.personal?.firstName)}
+                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
+                        title="Delete Employee"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center">
@@ -396,6 +513,7 @@ export const HRMS = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* --- ADD EMPLOYEE MULTI-STEP MODAL --- */}
       {isAddModalOpen && (

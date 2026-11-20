@@ -24,8 +24,9 @@ export const PreferencesProvider = ({ children }) => {
     ],
     hiddenWidgets: [],
     pinnedModules: ['home', 'hrms', 'hr', 'tasks', 'activity_tracker'],
-    theme: 'light',
+    theme: 'dark',
     sidebarCollapsed: false,
+    dashboards: {},
   });
   const [loading, setLoading] = useState(true);
 
@@ -36,16 +37,18 @@ export const PreferencesProvider = ({ children }) => {
       try {
         const res = await api.get('/preferences');
         if (res.success && res.data) {
+          const loadedTheme = res.data.theme || 'dark';
           setPreferences({
             homeLayout: res.data.homeLayout || [],
             hiddenWidgets: res.data.hiddenWidgets || [],
             pinnedModules: res.data.pinnedModules || ['home', 'hrms', 'hr', 'tasks', 'activity_tracker'],
-            theme: res.data.theme || 'light',
+            theme: loadedTheme,
             sidebarCollapsed: !!res.data.sidebarCollapsed,
+            dashboards: res.data.dashboards || {},
           });
 
           // Sync theme to HTML root
-          if (res.data.theme === 'dark') {
+          if (loadedTheme === 'dark') {
             document.documentElement.classList.add('dark');
           } else {
             document.documentElement.classList.remove('dark');
@@ -112,6 +115,29 @@ export const PreferencesProvider = ({ children }) => {
     }
   };
 
+  // Save per-dashboard layout, hidden widgets, sizes, and filters
+  const updateDashboardConfig = (dashboardKey, config) => {
+    const currentDashboards = preferences.dashboards || {};
+    const updated = {
+      ...currentDashboards,
+      [dashboardKey]: {
+        ...(currentDashboards[dashboardKey] || {}),
+        ...config,
+      },
+    };
+    updatePreferences({ dashboards: updated });
+  };
+
+  const getDashboardConfig = (dashboardKey, defaultLayout = []) => {
+    const config = preferences.dashboards?.[dashboardKey];
+    return {
+      layout: config?.layout && config.layout.length > 0 ? config.layout : defaultLayout,
+      hiddenWidgets: config?.hiddenWidgets || [],
+      widgetSizes: config?.widgetSizes || {},
+      filters: config?.filters || {},
+    };
+  };
+
   return (
     <PreferencesContext.Provider
       value={{
@@ -122,6 +148,8 @@ export const PreferencesProvider = ({ children }) => {
         toggleSidebarCollapse,
         toggleTheme,
         resetLayout,
+        updateDashboardConfig,
+        getDashboardConfig,
       }}
     >
       {children}

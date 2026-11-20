@@ -21,6 +21,104 @@ export const ERP_MODULES = [
     status: 'live',
     requiredPermission: 'employee.read',
     description: 'Complete employee directory, profile management, onboarding wizard, and document records',
+    children: [
+      {
+        key: 'hrms-dashboard',
+        label: 'HRMS Dashboard',
+        icon: 'LayoutDashboard',
+        path: '/hrms/dashboard',
+        status: 'live',
+        requiredPermission: 'hrms.dashboard.view',
+        description: 'Comprehensive workforce statistics, headcount trends, and late attendance tracking',
+      },
+      {
+        key: 'hrms-attendance',
+        label: 'Attendance',
+        icon: 'Clock',
+        path: '/hrms/attendance',
+        status: 'live',
+        requiredPermission: 'attendance.read',
+        description: 'Daily studio check-in/out records, work hours, and remote work tracking',
+      },
+      {
+        key: 'hrms-approvals',
+        label: 'HR Approvals',
+        icon: 'CheckSquare',
+        path: '/hrms/approvals',
+        status: 'live',
+        requiredPermission: 'approval.read',
+        description: 'Pending leave, regularization, and HR requests awaiting decision',
+      },
+      {
+        key: 'hrms-employees',
+        label: 'Employees',
+        icon: 'Users',
+        path: '/hrms/employees',
+        status: 'live',
+        requiredPermission: 'employee.read',
+        description: 'Staff directory with grid/table views, profiles, and export options',
+      },
+      {
+        key: 'hrms-letters',
+        label: 'Letters & Documents',
+        icon: 'FileText',
+        path: '/hrms/letters',
+        status: 'live',
+        requiredPermission: 'document.manage',
+        description: 'Offer letters, experience certificates, and official documents',
+      },
+      {
+        key: 'hrms-warnings',
+        label: 'Warnings & PIP',
+        icon: 'AlertTriangle',
+        path: '/hrms/warnings',
+        status: 'live',
+        requiredPermission: 'hr.access',
+        description: 'Formal notices, performance improvement plans, and tracking',
+      },
+      {
+        key: 'hrms-engage',
+        label: 'Engage',
+        icon: 'Heart',
+        path: '/hrms/engage',
+        status: 'soon',
+        requiredPermission: null,
+        description: 'Pulse surveys, employee sentiment, recognition, and studio culture wall',
+        plannedFeatures: [
+          'Anonymous team feedback and pulse surveys',
+          'Peer-to-peer appreciation badges and shoutouts',
+          'Studio announcement comments and celebrations',
+        ],
+      },
+      {
+        key: 'hrms-training',
+        label: 'Training & Development',
+        icon: 'GraduationCap',
+        path: '/hrms/training',
+        status: 'soon',
+        requiredPermission: null,
+        description: 'Skill matrix, learning tracks, and internal workshops',
+        plannedFeatures: [
+          'Design and engineering training curriculums',
+          'Certifications repository and renewal reminders',
+          'Mentorship pairing and progression tracks',
+        ],
+      },
+      {
+        key: 'hrms-performance',
+        label: 'Performance',
+        icon: 'Target',
+        path: '/hrms/performance',
+        status: 'soon',
+        requiredPermission: null,
+        description: 'Quarterly OKRs, 360-degree reviews, and appraisal cycles',
+        plannedFeatures: [
+          'Quarterly OKR and KPI goal-setting',
+          'Self-evaluations and manager review scoring',
+          'Compensation revision recommendations',
+        ],
+      },
+    ],
   },
   {
     key: 'hr',
@@ -253,6 +351,7 @@ export const ROLE_PERMISSIONS = {
   super_admin: ['*'], // Complete unrestricted master access
 
   admin: [
+    'hrms.dashboard.view',
     'employee.read',
     'employee.create',
     'employee.update',
@@ -340,6 +439,7 @@ export const ROLE_PERMISSIONS = {
   ],
 
   project_manager: [
+    'hrms.dashboard.view',
     'client.read',
     'project.read',
     'project.readOwn',
@@ -415,6 +515,7 @@ export const ROLE_PERMISSIONS = {
   ],
 
   hr: [
+    'hrms.dashboard.view',
     'employee.read',
     'employee.create',
     'employee.update',

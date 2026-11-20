@@ -47,6 +47,15 @@ const attendanceSchema = new mongoose.Schema(
       default: 'absent',
       index: true,
     },
+    lateReason: {
+      type: String,
+      enum: ['Transport issue', 'Personal commitment', 'Health', 'Weather', 'Other', ''],
+      default: '',
+    },
+    lateMinutes: {
+      type: Number,
+      default: 0,
+    },
     source: {
       type: String,
       enum: ['web', 'manual'],

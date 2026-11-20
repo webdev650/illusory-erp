@@ -6,6 +6,10 @@ import { Login } from './pages/Login';
 import { ChangePassword } from './pages/ChangePassword';
 import { Home } from './pages/Home';
 import { HRMS } from './pages/HRMS';
+import { HRMSDashboard } from './pages/HRMSDashboard';
+import { Warnings } from './pages/Warnings';
+import { Letters } from './pages/Letters';
+import { ModuleComingSoon } from './pages/ModuleComingSoon';
 import { EmployeeDetail } from './pages/EmployeeDetail';
 import { HRDashboard } from './pages/HRDashboard';
 import { Approvals } from './pages/Approvals';
@@ -59,13 +63,103 @@ export const App = () => {
           }
         />
 
-        {/* HRMS Module (Employee Master) */}
+        {/* HRMS Module (Two-Level Sub-pages) */}
         <Route
           path="hrms"
+          element={
+            <ProtectedRoute requiredPermission={['hrms.dashboard.view', 'employee.read']}>
+              <HRMSDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/dashboard"
+          element={
+            <ProtectedRoute requiredPermission="hrms.dashboard.view">
+              <HRMSDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/employees"
           element={
             <ProtectedRoute requiredPermission="employee.read">
               <HRMS />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance"
+          element={
+            <ProtectedRoute requiredPermission="attendance.read">
+              <HRDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/approvals"
+          element={
+            <ProtectedRoute requiredPermission="approval.read">
+              <Approvals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/letters"
+          element={
+            <ProtectedRoute requiredPermission="document.manage">
+              <Letters />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/warnings"
+          element={
+            <ProtectedRoute requiredPermission="hr.access">
+              <Warnings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/engage"
+          element={
+            <ModuleComingSoon
+              title="Engage & Studio Culture"
+              description="Pulse surveys, peer recognition, studio shoutouts, and team culture tracking."
+              features={[
+                'Voluntary employee pulse surveys and sentiment analytics',
+                'Peer-to-peer appreciation badges and public shoutouts',
+                'Company townhall Q&A and cultural event voting',
+              ]}
+            />
+          }
+        />
+        <Route
+          path="hrms/training"
+          element={
+            <ModuleComingSoon
+              title="Training & Development"
+              description="Skill development matrices, course certifications, and progression roadmaps."
+              features={[
+                'Design, frontend, and engineering training curriculums',
+                'Certifications repository and automatic renewal alerts',
+                'Senior mentorship pairing and 1-on-1 development tracking',
+              ]}
+            />
+          }
+        />
+        <Route
+          path="hrms/performance"
+          element={
+            <ModuleComingSoon
+              title="Performance Management"
+              description="Quarterly OKRs, 360-degree reviews, and annual appraisal cycles."
+              features={[
+                'Quarterly OKR and project KPI tracking',
+                'Self-appraisals, peer reviews, and manager scorecards',
+                'Objective compensation and promotion recommendations',
+              ]}
+            />
           }
         />
         <Route

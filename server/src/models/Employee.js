@@ -158,6 +158,7 @@ const employeeSchema = new mongoose.Schema(
     // Employment details
     employment: {
       dateOfJoining: { type: Date, default: Date.now },
+      dateOfLeaving: { type: Date, default: null },
       employeeType: {
         type: String,
         enum: ['Full-Time', 'Part-Time', 'Contract', 'Intern'],
@@ -186,6 +187,13 @@ const employeeSchema = new mongoose.Schema(
     },
 
     history: [historySchema],
+    statusHistory: [
+      {
+        status: { type: String, required: true },
+        changedAt: { type: Date, default: Date.now },
+        reason: { type: String, default: '' },
+      },
+    ],
     education: [educationSchema],
     experience: [experienceSchema],
     skills: [{ type: String, trim: true }],
