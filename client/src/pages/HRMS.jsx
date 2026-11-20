@@ -21,6 +21,7 @@ import {
   CreditCard,
   User,
   ArrowRight,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 export const HRMS = () => {
@@ -202,21 +203,30 @@ export const HRMS = () => {
         subtitle={`Total of ${pagination.total} employees across all agency disciplines`}
         breadcrumbs={[{ label: 'HRMS' }]}
         actions={
-          hasPermission('employee.create') ? (
-            <Button
-              variant="primary"
-              size="sm"
-              icon={Plus}
-              onClick={() => {
-                setStep(1);
-                setCreatedCredentials(null);
-                setFormError(null);
-                setIsAddModalOpen(true);
-              }}
-            >
-              Add New Employee
-            </Button>
-          ) : null
+          <div className="flex items-center space-x-2">
+            {(hasPermission('employee.import') || hasPermission('*')) && (
+              <Link to="/hrms/import">
+                <Button variant="outline" size="sm" icon={FileSpreadsheet}>
+                  Import Excel
+                </Button>
+              </Link>
+            )}
+            {hasPermission('employee.create') ? (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Plus}
+                onClick={() => {
+                  setStep(1);
+                  setCreatedCredentials(null);
+                  setFormError(null);
+                  setIsAddModalOpen(true);
+                }}
+              >
+                Add New Employee
+              </Button>
+            ) : null}
+          </div>
         }
       />
 

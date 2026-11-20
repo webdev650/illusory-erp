@@ -14,10 +14,14 @@ import {
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { upload } from '../middleware/upload.js';
+import employeeImportRoutes from './employeeImport.routes.js';
 
 const router = Router();
 
 router.use(requireAuth);
+
+// Employee Excel Import routes (must precede /:id)
+router.use('/import', employeeImportRoutes);
 
 // Employee Self-Service routes (MUST come before /:id routes)
 router.get('/me', getMyProfile);

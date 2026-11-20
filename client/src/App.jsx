@@ -19,6 +19,7 @@ import { Tasks } from './pages/Tasks';
 import { ActivityTracker } from './pages/ActivityTracker';
 import { Assets } from './pages/Assets';
 import { AssetDetail } from './pages/AssetDetail';
+import ImportEmployees from './pages/ImportEmployees';
 
 export const App = () => {
   return (
@@ -64,6 +65,14 @@ export const App = () => {
           element={
             <ProtectedRoute requiredPermission="employee.read">
               <HRMS />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/import"
+          element={
+            <ProtectedRoute requiredPermission="employee.import">
+              <ImportEmployees />
             </ProtectedRoute>
           }
         />

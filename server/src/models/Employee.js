@@ -239,6 +239,11 @@ const employeeSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    isDemo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,
