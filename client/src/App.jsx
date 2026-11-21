@@ -24,6 +24,8 @@ import { ActivityTracker } from './pages/ActivityTracker';
 import { Assets } from './pages/Assets';
 import { AssetDetail } from './pages/AssetDetail';
 import ImportEmployees from './pages/ImportEmployees';
+import AttendanceCalendar from './pages/attendance/AttendanceCalendar';
+import ManageLogs from './pages/attendance/ManageLogs';
 
 export const App = () => {
   return (
@@ -88,11 +90,92 @@ export const App = () => {
             </ProtectedRoute>
           }
         />
+        {/* HRMS Attendance Sub-menu Routes */}
         <Route
           path="hrms/attendance"
           element={
             <ProtectedRoute requiredPermission="attendance.read">
-              <HRDashboard />
+              <AttendanceCalendar />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/calendar"
+          element={
+            <ProtectedRoute requiredPermission="attendance.read">
+              <AttendanceCalendar />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/manage-logs"
+          element={
+            <ProtectedRoute requiredPermission={['attendance.manage', 'hr.access', 'employee.read']}>
+              <ManageLogs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/regularization"
+          element={
+            <ProtectedRoute>
+              <ModuleComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/leave"
+          element={
+            <ProtectedRoute>
+              <ModuleComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/remote-work"
+          element={
+            <ProtectedRoute>
+              <ModuleComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/partial-day"
+          element={
+            <ProtectedRoute>
+              <ModuleComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/comp-off"
+          element={
+            <ProtectedRoute>
+              <ModuleComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/bulk-logs"
+          element={
+            <ProtectedRoute>
+              <ModuleComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/roster"
+          element={
+            <ProtectedRoute>
+              <ModuleComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/settlement"
+          element={
+            <ProtectedRoute>
+              <ModuleComingSoon />
             </ProtectedRoute>
           }
         />

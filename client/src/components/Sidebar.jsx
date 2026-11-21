@@ -36,6 +36,9 @@ import {
   Sun,
   Moon,
   X,
+  Calendar,
+  CalendarDays,
+  Edit2,
 } from 'lucide-react';
 
 const ICON_MAP = {
@@ -64,6 +67,9 @@ const ICON_MAP = {
   Heart,
   GraduationCap,
   Target,
+  Calendar,
+  CalendarDays,
+  Edit2,
 };
 
 const MODULE_TILE_COLORS = {

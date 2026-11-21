@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import Attendance from '../models/Attendance.js';
 import Employee from '../models/Employee.js';
 import Holiday from '../models/Holiday.js';
+import AttendanceLog from '../models/AttendanceLog.js';
 import Task from '../models/Task.js';
 import Timesheet from '../models/Timesheet.js';
 import Asset from '../models/Asset.js';
@@ -9,10 +10,62 @@ import AssetAssignment from '../models/AssetAssignment.js';
 import SoftwareLicense from '../models/SoftwareLicense.js';
 import MaintenanceRecord from '../models/MaintenanceRecord.js';
 import { normalizeToKolkataMidnight } from '../utils/dateUtils.js';
+import { toISTDateString } from './dayStatus.service.js';
 import { getWeekBounds } from './activity.service.js';
 import { notifyEmployee } from './notification.service.js';
 
 export const initCronJobs = () => {
+  // 0. Run daily at 19:00 Asia/Kolkata: Missing Clock-Out Auto-Alert
+  cron.schedule(
+    '0 19 * * *',
+    async () => {
+      console.log('⏰ [Cron] Running 19:00 IST Missing Clock-Out inspection...');
+      try {
+        const todayIST = toISTDateString(new Date());
+        const activeEmployees = await Employee.find({
+          status: 'active',
+          isDeleted: false,
+        }).populate('employment.reportingManager');
+
+        for (const emp of activeEmployees) {
+          const logs = await AttendanceLog.find({
+            employee: emp._id,
+            date: todayIST,
+            isDeleted: false,
+          });
+
+          const hasIn = logs.some((l) => l.type === 'in');
+          const hasOut = logs.some((l) => l.type === 'out');
+
+          if (hasIn && !hasOut) {
+            // Missing clock-out detected
+            const notifPayload = {
+              title: 'Attendance Alert: Missing Clock-Out',
+              message: `You clocked in today (${todayIST}) but haven't clocked out. Please clock out or request log regularization.`,
+              type: 'ATTENDANCE_REGULARIZATION',
+              actionUrl: `/hrms/attendance/regularization?date=${todayIST}`,
+            };
+
+            await notifyEmployee(emp._id, notifPayload);
+
+            // Also alert reporting manager if present
+            if (emp.employment?.reportingManager?._id) {
+              await notifyEmployee(emp.employment.reportingManager._id, {
+                title: `Team Attendance Alert: ${emp.personal?.firstName} ${emp.personal?.lastName}`,
+                message: `${emp.personal?.firstName} clocked in today (${todayIST}) with no clock-out recorded by 19:00 IST.`,
+                type: 'ATTENDANCE_REGULARIZATION',
+                actionUrl: `/hrms/attendance/manage-logs?employeeId=${emp._id}`,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('❌ [Cron Error] 19:00 IST missing clock-out job failed:', err.message);
+      }
+    },
+    { timezone: 'Asia/Kolkata' }
+  );
+
   // 1. Run daily at 23:59 Asia/Kolkata time for attendance reconciliation
   cron.schedule(
     '59 23 * * *',

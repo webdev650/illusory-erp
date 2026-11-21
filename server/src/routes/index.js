@@ -16,6 +16,7 @@ import activityRoutes from './activity.routes.js';
 import assetRoutes from './asset.routes.js';
 import preferenceRoutes from './preference.routes.js';
 import hrmsDashboardRoutes from './hrmsDashboard.routes.js';
+import attendanceRoutes from './attendance.routes.js';
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.use('/users', userRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/approvals', approvalRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/attendance', attendanceRoutes);
 router.use('/hr', hrRoutes);
 router.use('/clients', clientRoutes);
 router.use('/projects', projectRoutes);
