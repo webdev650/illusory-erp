@@ -1,13 +1,34 @@
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
+import { User } from '../src/models/User.js';
+import { Role } from '../src/models/Role.js';
 
 describe('AUTH API INTEGRATION TESTS', () => {
+  const testEmail = 'test-auth-runner@illusorydesignstudios.com';
+  const testPassword = 'TestPassword@123';
+
   beforeAll(async () => {
     const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
     if (mongoose.connection.readyState === 0 && mongoUri) {
       await mongoose.connect(mongoUri);
     }
+
+    const superAdminRole = await Role.findOne({ key: 'super_admin' });
+    const passwordHash = await User.hashPassword(testPassword);
+
+    await User.deleteMany({ email: testEmail });
+    await User.create({
+      email: testEmail,
+      passwordHash,
+      role: superAdminRole?._id || new mongoose.Types.ObjectId(),
+      isActive: true,
+      mustChangePassword: false,
+    });
+  });
+
+  afterAll(async () => {
+    await User.deleteMany({ email: testEmail });
   });
 
   describe('POST /api/v1/auth/login', () => {
@@ -15,21 +36,21 @@ describe('AUTH API INTEGRATION TESTS', () => {
       const res = await request(app)
         .post('/api/v1/auth/login')
         .send({
-          email: 'superadmin1@illusorydesignstudios.com',
-          password: 'ChangeMe@123',
+          email: testEmail,
+          password: testPassword,
         });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.token).toBeDefined();
-      expect(res.body.data.user.email).toBe('superadmin1@illusorydesignstudios.com');
+      expect(res.body.data.user.email).toBe(testEmail);
     });
 
     it('should reject invalid password with 401', async () => {
       const res = await request(app)
         .post('/api/v1/auth/login')
         .send({
-          email: 'superadmin1@illusorydesignstudios.com',
+          email: testEmail,
           password: 'WrongPassword@999',
         });
 
@@ -63,8 +84,8 @@ describe('AUTH API INTEGRATION TESTS', () => {
       const loginRes = await request(app)
         .post('/api/v1/auth/login')
         .send({
-          email: 'superadmin1@illusorydesignstudios.com',
-          password: 'ChangeMe@123',
+          email: testEmail,
+          password: testPassword,
         });
 
       const token = loginRes.body.data.token;
@@ -75,7 +96,7 @@ describe('AUTH API INTEGRATION TESTS', () => {
 
       expect(meRes.status).toBe(200);
       expect(meRes.body.success).toBe(true);
-      expect(meRes.body.data.email).toBe('superadmin1@illusorydesignstudios.com');
+      expect(meRes.body.data.email).toBe(testEmail);
       expect(meRes.body.data.role).toBeDefined();
     });
   });

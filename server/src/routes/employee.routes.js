@@ -6,6 +6,7 @@ import {
   updateEmployee,
   deleteEmployee,
   updateEmployeeStatus,
+  updateReportingManager,
   getMyProfile,
   updateMyProfile,
   uploadEmployeePhoto,
@@ -34,6 +35,7 @@ router.get('/:id', getEmployeeById);
 router.put('/:id', requirePermission('employee.update'), updateEmployee);
 router.delete('/:id', requirePermission('employee.delete'), deleteEmployee);
 router.patch('/:id/status', requirePermission('employee.update'), updateEmployeeStatus);
+router.patch('/:id/manager', requirePermission('employee.update'), updateReportingManager);
 
 // Upload routes
 router.post('/:id/photo', upload.single('photo'), uploadEmployeePhoto);

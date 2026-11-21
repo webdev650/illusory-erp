@@ -10,9 +10,15 @@ import { Attendance } from '../models/Attendance.js';
 import { LeaveRequest } from '../models/LeaveRequest.js';
 import { LeaveBalance } from '../models/LeaveBalance.js';
 import Task from '../models/Task.js';
+import Project from '../models/Project.js';
+import Client from '../models/Client.js';
 import TimeEntry from '../models/TimeEntry.js';
 import Timesheet from '../models/Timesheet.js';
 import ActiveTimer from '../models/ActiveTimer.js';
+import Notification from '../models/Notification.js';
+import { AuditLog } from '../models/AuditLog.js';
+import '../models/Role.js';
+import '../models/Department.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,140 +26,112 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
-const DEMO_EMAIL_PATTERNS = [
-  /^superadmin[1-9]@illusorydesignstudios\.com$/i,
-  /^employee[1-9]@illusorydesignstudios\.com$/i,
-  /^pm@illusorydesignstudios\.com$/i,
-  /^itadmin@illusorydesignstudios\.com$/i,
+// The 9 real company employees from the Excel sheet
+const REAL_EMAILS = [
+  'operations@illusorydesignstudios.com',
+  'hr@illusorydesignstudios.com',
+  'mihirdash@illusorydesignstudios.com',
+  'pallabikar@illusorydesignstudios.com',
+  'tejaswinibishoyi@illusorydesignstudios.com',
+  'shresthamohanty@illusorydesignstudios.com',
+  'rahulmohanty@illusorydesignstudios.com',
+  'laxmipriya@illusorydesignstudios.com',
+  'aryanbiswal@illusorydesignstudios.com',
 ];
 
-const askConfirmation = (query) => {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) =>
-    rl.question(query, (ans) => {
-      rl.close();
-      resolve(ans.trim().toLowerCase());
-    })
-  );
-};
-
-const runCleanup = async () => {
-  const args = process.argv.slice(2);
-  const autoConfirm = args.includes('--confirm') || args.includes('--force') || args.includes('-y');
-
+export const runCleanup = async () => {
   console.log('\n🧹 =======================================================');
-  console.log('🧹 Illusory ERP — Demo Data Cleanup Script');
+  console.log('🧹 Illusory ERP — Demo & Mock Data Removal');
   console.log('=======================================================\n');
 
   try {
     await connectDB();
 
-    // 1. Safety Guard: Check if at least one real Super Admin exists
-    const superAdminRole = await mongoose.model('Role').findOne({ key: 'super_admin' });
-    const realSuperAdmins = await User.find({
-      role: superAdminRole?._id,
-      email: { $nin: ['superadmin1@illusorydesignstudios.com', 'superadmin2@illusorydesignstudios.com', 'superadmin3@illusorydesignstudios.com'] },
-    });
+    // 1. Verify Real Super Admin and HR Admin are active
+    const aparna = await User.findOne({ email: 'operations@illusorydesignstudios.com' }).populate('role employee');
+    const barsha = await User.findOne({ email: 'hr@illusorydesignstudios.com' }).populate('role employee');
 
-    if (realSuperAdmins.length === 0) {
-      console.warn('⚠️  SAFETY ALERT: No imported real Super Admin was found in the database!');
-      console.warn('   (e.g., operations@illusorydesignstudios.com / Aparna Tripathy)');
-      console.warn('   Deleting demo super admins now could lock you out of the system.');
-      console.warn('   Please run `npm run import:employees -- --commit` first before running demo cleanup.\n');
-
-      if (!autoConfirm) {
-        const proceedAnyway = await askConfirmation('Do you still want to proceed with demo cleanup? (yes/no): ');
-        if (proceedAnyway !== 'yes') {
-          console.log('Cleanup aborted. Safe exit.');
-          process.exit(0);
-        }
-      }
-    } else {
-      console.log(`✅ Real Super Admin confirmed: ${realSuperAdmins.map((u) => u.email).join(', ')}`);
+    if (!aparna || !aparna.isActive) {
+      throw new Error('SAFETY CHECK FAILED: Real Super Admin (operations@illusorydesignstudios.com) not found or inactive!');
+    }
+    if (!barsha || !barsha.isActive) {
+      throw new Error('SAFETY CHECK FAILED: Real HR Admin (hr@illusorydesignstudios.com) not found or inactive!');
     }
 
-    // 2. Identify Demo Users & Employees
-    const demoUsers = await User.find({
-      $or: [
-        { isDemo: true },
-        { email: { $in: [
-          'superadmin1@illusorydesignstudios.com',
-          'superadmin2@illusorydesignstudios.com',
-          'superadmin3@illusorydesignstudios.com',
-          'pm@illusorydesignstudios.com',
-          'itadmin@illusorydesignstudios.com',
-          'employee1@illusorydesignstudios.com',
-          'employee2@illusorydesignstudios.com',
-          'employee3@illusorydesignstudios.com',
-          'employee4@illusorydesignstudios.com',
-          'employee5@illusorydesignstudios.com',
-          'employee6@illusorydesignstudios.com',
-          'employee7@illusorydesignstudios.com',
-          'employee8@illusorydesignstudios.com',
-        ] } },
-      ],
-    });
+    console.log('✅ Safety verification passed:');
+    console.log(`   - Super Admin : ${aparna.email} (Active: ${aparna.isActive})`);
+    console.log(`   - HR Admin    : ${barsha.email} (Active: ${barsha.isActive})`);
 
+    // 2. Locate all demo users and employees
+    const demoUsers = await User.find({ email: { $nin: REAL_EMAILS } });
     const demoUserIds = demoUsers.map((u) => u._id);
-    const demoEmployeeIds = demoUsers.map((u) => u.employee).filter(Boolean);
 
-    // Also find employees with IDS001 - IDS014 or isDemo
-    const demoEmployees = await Employee.find({
-      $or: [
-        { isDemo: true },
-        { _id: { $in: demoEmployeeIds } },
-        { employeeId: { $in: ['IDS001', 'IDS002', 'IDS003', 'IDS005', 'IDS006', 'IDS007', 'IDS008', 'IDS009', 'IDS010', 'IDS011', 'IDS012', 'IDS013', 'IDS014'] } },
-      ],
+    const demoEmployees = await Employee.find({ 'personal.officialEmail': { $nin: REAL_EMAILS } });
+    const demoEmpIds = demoEmployees.map((e) => e._id);
+
+    console.log(`\n📋 Target Demo Accounts to Purge:`);
+    console.log(`   - Demo Users     : ${demoUsers.length}`);
+    console.log(`   - Demo Employees : ${demoEmployees.length}`);
+
+    // 3. Purge associated synthetic logs
+    const attRes = await Attendance.deleteMany({
+      $or: [{ employee: { $in: demoEmpIds } }, { employee: { $nin: (await Employee.find({ 'personal.officialEmail': { $in: REAL_EMAILS } }, '_id')).map(e => e._id) } }],
     });
-    const allDemoEmpIds = demoEmployees.map((e) => e._id);
+    const leaveReqRes = await LeaveRequest.deleteMany({ employee: { $in: demoEmpIds } });
+    const leaveBalRes = await LeaveBalance.deleteMany({ employee: { $in: demoEmpIds } });
+    const timeEntryRes = await TimeEntry.deleteMany({ employee: { $in: demoEmpIds } });
+    const timesheetRes = await Timesheet.deleteMany({ employee: { $in: demoEmpIds } });
+    const timerRes = await ActiveTimer.deleteMany({ employee: { $in: demoEmpIds } });
+    const clientRes = await Client.deleteMany({ $or: [{ isDemo: true }, { createdBy: { $in: demoUserIds } }] });
+    const taskRes = await Task.deleteMany({ $or: [{ isDemo: true }, { createdBy: { $in: demoUserIds } }, { assignee: { $in: demoEmpIds } }] });
+    const projRes = await Project.deleteMany({ $or: [{ isDemo: true }, { createdBy: { $in: demoUserIds } }] });
+    const notifRes = await Notification.deleteMany({ user: { $in: demoUserIds } });
+    const auditRes = await AuditLog.deleteMany({ user: { $in: demoUserIds } });
 
-    // Count associated fake entities
-    const fakeAttendanceCount = await Attendance.countDocuments({ employee: { $in: allDemoEmpIds } });
-    const fakeTimeEntriesCount = await TimeEntry.countDocuments({ employee: { $in: allDemoEmpIds } });
-    const fakeTimesheetsCount = await Timesheet.countDocuments({ employee: { $in: allDemoEmpIds } });
-    const fakeLeavesCount = await LeaveRequest.countDocuments({ employee: { $in: allDemoEmpIds } });
-    const fakeLeaveBalancesCount = await LeaveBalance.countDocuments({ employee: { $in: allDemoEmpIds } });
+    // 4. Delete demo Users and Employees
+    const userRes = await User.deleteMany({ _id: { $in: demoUserIds } });
+    const empRes = await Employee.deleteMany({ _id: { $in: demoEmpIds } });
 
-    console.log('\n📊 DEMO RECORDS IDENTIFIED FOR REMOVAL:');
-    console.log(`   - Demo User Accounts   : ${demoUsers.length}`);
-    console.log(`   - Demo Employee Masters : ${demoEmployees.length}`);
-    console.log(`   - Demo Attendance Logs  : ${fakeAttendanceCount}`);
-    console.log(`   - Demo Timesheet Entries: ${fakeTimeEntriesCount} entries in ${fakeTimesheetsCount} sheets`);
-    console.log(`   - Demo Leave Requests   : ${fakeLeavesCount}`);
-    console.log(`   - Demo Leave Balances   : ${fakeLeaveBalancesCount}`);
+    console.log('\n🗑️  Deletion Summary:');
+    console.log(`   ✓ Users deleted            : ${userRes.deletedCount}`);
+    console.log(`   ✓ Employees deleted        : ${empRes.deletedCount}`);
+    console.log(`   ✓ Attendance logs deleted  : ${attRes.deletedCount}`);
+    console.log(`   ✓ Leave requests deleted   : ${leaveReqRes.deletedCount}`);
+    console.log(`   ✓ Leave balances deleted   : ${leaveBalRes.deletedCount}`);
+    console.log(`   ✓ Time entries deleted     : ${timeEntryRes.deletedCount}`);
+    console.log(`   ✓ Timesheets deleted       : ${timesheetRes.deletedCount}`);
+    console.log(`   ✓ Active timers deleted    : ${timerRes.deletedCount}`);
+    console.log(`   ✓ Demo clients deleted     : ${clientRes.deletedCount}`);
+    console.log(`   ✓ Demo tasks deleted       : ${taskRes.deletedCount}`);
+    console.log(`   ✓ Demo projects deleted    : ${projRes.deletedCount}`);
+    console.log(`   ✓ Demo notifications purged: ${notifRes.deletedCount}`);
+    console.log(`   ✓ Demo audit logs purged   : ${auditRes.deletedCount}`);
 
-    console.log('\nDemo User Emails to delete:');
-    demoUsers.forEach((u) => console.log(`   • ${u.email}`));
+    // 5. Orphan integrity check
+    console.log('\n🔍 Verifying zero orphan records remain...');
+    const realEmpIds = (await Employee.find({ 'personal.officialEmail': { $in: REAL_EMAILS } }, '_id')).map((e) => e._id);
+    const realUserIds = (await User.find({ email: { $in: REAL_EMAILS } }, '_id')).map((u) => u._id);
 
-    if (!autoConfirm) {
-      console.log('\n⚠️  THIS ACTION CANNOT BE UNDONE.');
-      const confirm = await askConfirmation('Type "delete" to permanently purge all demo records: ');
-      if (confirm !== 'delete') {
-        console.log('Cleanup cancelled by user.');
-        process.exit(0);
-      }
-    }
+    const orphanAttendance = await Attendance.countDocuments({ employee: { $nin: realEmpIds } });
+    const orphanLeaves = await LeaveRequest.countDocuments({ employee: { $nin: realEmpIds } });
+    const orphanTimeEntries = await TimeEntry.countDocuments({ employee: { $nin: realEmpIds } });
+    const orphanTasks = await Task.countDocuments({ assignee: { $exists: true, $ne: null, $nin: realEmpIds } });
 
-    console.log('\n🗑️  Purging demo records from MongoDB...');
+    console.log(`   - Orphan Attendance   : ${orphanAttendance}`);
+    console.log(`   - Orphan Leaves       : ${orphanLeaves}`);
+    console.log(`   - Orphan Time Entries : ${orphanTimeEntries}`);
+    console.log(`   - Orphan Tasks        : ${orphanTasks}`);
 
-    await Attendance.deleteMany({ employee: { $in: allDemoEmpIds } });
-    await TimeEntry.deleteMany({ employee: { $in: allDemoEmpIds } });
-    await Timesheet.deleteMany({ employee: { $in: allDemoEmpIds } });
-    await ActiveTimer.deleteMany({ employee: { $in: allDemoEmpIds } });
-    await LeaveRequest.deleteMany({ employee: { $in: allDemoEmpIds } });
-    await LeaveBalance.deleteMany({ employee: { $in: allDemoEmpIds } });
-    await User.deleteMany({ _id: { $in: demoUserIds } });
-    await Employee.deleteMany({ _id: { $in: allDemoEmpIds } });
+    if (orphanAttendance > 0) await Attendance.deleteMany({ employee: { $nin: realEmpIds } });
+    if (orphanLeaves > 0) await LeaveRequest.deleteMany({ employee: { $nin: realEmpIds } });
+    if (orphanTimeEntries > 0) await TimeEntry.deleteMany({ employee: { $nin: realEmpIds } });
 
-    console.log('\n=======================================================');
-    console.log('✅ DEMO DATA CLEANUP COMPLETED!');
-    console.log('   All sample mock data has been removed.');
-    console.log('   Real imported company employees remain untouched.');
-    console.log('=======================================================\n');
+    // 6. Remaining verification
+    const remainingUsers = await User.countDocuments();
+    const remainingEmployees = await Employee.countDocuments();
+    console.log(`\n=======================================================`);
+    console.log(`✅ CLEANUP COMPLETE: Exactly ${remainingUsers} Users and ${remainingEmployees} Employees in database.`);
+    console.log(`=======================================================\n`);
 
     process.exit(0);
   } catch (err) {

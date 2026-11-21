@@ -453,3 +453,48 @@ export const uploadEmployeeDocument = async (req, res, next) => {
   }
 };
 
+// PATCH /api/v1/employees/:id/manager - Update reporting manager
+export const updateReportingManager = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { managerId } = req.body;
+
+    const employee = await Employee.findOne({ _id: id, isDeleted: false });
+    if (!employee) {
+      return sendError(res, 'Employee not found', 404);
+    }
+
+    if (managerId) {
+      if (String(managerId) === String(id)) {
+        return sendError(res, 'An employee cannot be their own reporting manager', 400);
+      }
+      const manager = await Employee.findOne({ _id: managerId, isDeleted: false });
+      if (!manager) {
+        return sendError(res, 'Reporting manager not found', 404);
+      }
+      employee.employment.reportingManager = manager._id;
+    } else {
+      employee.employment.reportingManager = null;
+    }
+
+    await employee.save();
+
+    await logAudit({
+      req,
+      action: 'UPDATE_REPORTING_MANAGER',
+      entity: 'Employee',
+      entityId: id,
+      changes: { reportingManager: managerId || null },
+    });
+
+    const populated = await Employee.findById(id)
+      .populate('employment.department', 'name code')
+      .populate('employment.reportingManager', 'personal.firstName personal.lastName employeeId');
+
+    const sanitized = sanitizeEmployee(populated, req.permissions, false);
+    return sendSuccess(res, sanitized, 'Reporting manager updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+

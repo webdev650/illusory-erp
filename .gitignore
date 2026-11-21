@@ -21,7 +21,13 @@ build/
 backups/
 **/backups/
 data/
-**/data/imports/
+**/data/
+server/data/
+**/server/data/
+uploads/
+**/uploads/
+import-reports/
+**/import-reports/
 *.xlsx
 *.csv
 

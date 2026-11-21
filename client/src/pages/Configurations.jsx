@@ -15,6 +15,7 @@ import {
   Lock,
   Unlock,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 
 export const Configurations = () => {
@@ -110,6 +111,22 @@ export const Configurations = () => {
       }
     } catch (err) {
       alert(err.message || 'Failed to reset password');
+    }
+  };
+
+  const handleForcePasswordReset = async (id, email) => {
+    if (!window.confirm(`Force password change on next login for ${email}?`)) {
+      return;
+    }
+    try {
+      const res = await api.post(`/users/${id}/force-reset`);
+      if (res.success) {
+        setMsg(`Password reset requirement flagged for ${email}. They must set a new password on next login.`);
+        setTimeout(() => setMsg(null), 4000);
+        loadData();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to force password reset');
     }
   };
 
@@ -265,6 +282,14 @@ export const Configurations = () => {
                       </span>
                     </td>
                     <td className="py-3 px-6 text-right space-x-2">
+                      <button
+                        onClick={() => handleForcePasswordReset(u._id, u.email)}
+                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                        title="Force password reset on next login"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+
                       <button
                         onClick={() => handleResetPassword(u._id, u.email)}
                         className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"

@@ -40,6 +40,47 @@ export const EmployeeDetail = () => {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  // Reporting Manager modal states
+  const [managerModalOpen, setManagerModalOpen] = useState(false);
+  const [allEmployees, setAllEmployees] = useState([]);
+  const [selectedManagerId, setSelectedManagerId] = useState('');
+  const [savingManager, setSavingManager] = useState(false);
+
+  const openManagerModal = async () => {
+    try {
+      if (allEmployees.length === 0) {
+        const res = await api.get('/employees');
+        if (res.success) {
+          setAllEmployees(res.data.filter((e) => String(e._id) !== String(id)));
+        }
+      }
+      setSelectedManagerId(employee?.employment?.reportingManager?._id || '');
+      setManagerModalOpen(true);
+    } catch (err) {
+      alert('Failed to load employee list');
+    }
+  };
+
+  const handleUpdateManager = async (e) => {
+    e.preventDefault();
+    setSavingManager(true);
+    try {
+      const res = await api.patch(`/employees/${id}/manager`, {
+        managerId: selectedManagerId || null,
+      });
+      if (res.success) {
+        setEmployee(res.data);
+        setManagerModalOpen(false);
+        setMsg('Reporting manager updated successfully');
+        setTimeout(() => setMsg(null), 3000);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update reporting manager');
+    } finally {
+      setSavingManager(false);
+    }
+  };
+
   const fetchClearance = async () => {
     try {
       setLoadingClearance(true);
@@ -374,9 +415,20 @@ export const EmployeeDetail = () => {
               <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{emp.noticePeriodDays || 30} Days</p>
             </div>
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-              <span className="text-slate-400 text-[10px] uppercase font-bold">Reporting Lead</span>
+              <div className="flex justify-between items-start">
+                <span className="text-slate-400 text-[10px] uppercase font-bold">Reporting Lead</span>
+                {hasPermission('employee.update') && (
+                  <button
+                    type="button"
+                    onClick={openManagerModal}
+                    className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 hover:underline"
+                  >
+                    {emp.reportingManager ? 'Change' : 'Set Manager'}
+                  </button>
+                )}
+              </div>
               <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">
-                {emp.reportingManager ? `${emp.reportingManager.personal?.firstName} ${emp.reportingManager.personal?.lastName}` : 'Studio Management'}
+                {emp.reportingManager ? `${emp.reportingManager.personal?.firstName} ${emp.reportingManager.personal?.lastName}` : 'Studio Management / Unassigned'}
               </p>
             </div>
           </div>
@@ -735,6 +787,53 @@ export const EmployeeDetail = () => {
                   className="px-4 py-1.5 rounded-xl bg-brand-600 text-white font-semibold"
                 >
                   Confirm Change
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Set Reporting Manager Modal */}
+      {managerModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-xl border border-slate-200 dark:border-slate-700">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">Assign Reporting Manager</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Select the supervisor who will approve leaves, timesheets, and review performance for {employee.personal?.firstName} {employee.personal?.lastName}.
+            </p>
+
+            <form onSubmit={handleUpdateManager} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 mb-1 font-semibold">Reporting Lead</label>
+                <select
+                  value={selectedManagerId}
+                  onChange={(e) => setSelectedManagerId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                >
+                  <option value="">None (Studio Management / Unassigned)</option>
+                  {allEmployees.map((e) => (
+                    <option key={e._id} value={e._id}>
+                      [{e.employeeId}] {e.personal?.firstName} {e.personal?.lastName} ({e.employment?.department?.name || 'Staff'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setManagerModalOpen(false)}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingManager}
+                  className="px-4 py-1.5 rounded-xl bg-brand-600 text-white font-semibold disabled:opacity-50"
+                >
+                  {savingManager ? 'Saving...' : 'Save Manager'}
                 </button>
               </div>
             </form>

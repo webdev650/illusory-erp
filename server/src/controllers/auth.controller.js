@@ -11,7 +11,12 @@ const loginSchema = z.object({
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+  newPassword: z
+    .string()
+    .min(10, 'New password must be at least 10 characters')
+    .regex(/[A-Z]/, 'New password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'New password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'New password must contain at least one number'),
 });
 
 export const login = async (req, res, next) => {
@@ -31,17 +36,63 @@ export const login = async (req, res, next) => {
       return sendError(res, 'Account is deactivated. Please contact an admin.', 403);
     }
 
+    // Check account lockout (15 minutes after 5 consecutive failed attempts)
+    if (user.lockUntil && user.lockUntil > new Date()) {
+      const remainingMinutes = Math.ceil((user.lockUntil - new Date()) / 60000);
+      return sendError(
+        res,
+        `Account is temporarily locked due to consecutive failed attempts. Please try again after ${remainingMinutes} minute(s).`,
+        423
+      );
+    }
+
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return sendError(res, 'Invalid email or password', 401);
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+      if (user.failedLoginAttempts >= 5) {
+        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+        await user.save();
+        return sendError(
+          res,
+          'Account locked for 15 minutes due to 5 consecutive failed login attempts.',
+          423
+        );
+      }
+      await user.save();
+      const remaining = 5 - user.failedLoginAttempts;
+      return sendError(
+        res,
+        `Invalid email or password. (${remaining} attempt${remaining === 1 ? '' : 's'} remaining before 15-minute lockout)`,
+        401
+      );
     }
 
     // Sign JWT
     const token = signToken({ id: user._id, role: user.role?.key });
     setTokenCookie(res, token);
 
-    // Update lastLoginAt
+    // Reset failed attempts, update lastLoginAt, record loginHistory
+    user.failedLoginAttempts = 0;
+    user.lockUntil = null;
     user.lastLoginAt = new Date();
+
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress || '';
+    const userAgent = req.headers['user-agent'] || '';
+    let device = 'Desktop';
+    if (/mobile/i.test(userAgent)) device = 'Mobile';
+    else if (/tablet|ipad/i.test(userAgent)) device = 'Tablet';
+
+    user.loginHistory = user.loginHistory || [];
+    user.loginHistory.unshift({
+      time: new Date(),
+      ip,
+      device,
+      userAgent: userAgent.slice(0, 200),
+    });
+    if (user.loginHistory.length > 20) {
+      user.loginHistory = user.loginHistory.slice(0, 20);
+    }
+
     await user.save();
 
     await logAudit({

@@ -4,6 +4,7 @@ import {
   createUser,
   toggleUserStatus,
   resetUserPassword,
+  forcePasswordReset,
 } from '../controllers/user.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
@@ -17,6 +18,7 @@ router.get('/', listUsers);
 router.post('/', createUser);
 router.patch('/:id/status', toggleUserStatus);
 router.post('/:id/reset-password', resetUserPassword);
+router.post('/:id/force-reset', forcePasswordReset);
 
 export default router;
 

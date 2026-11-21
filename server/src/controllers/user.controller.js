@@ -147,3 +147,37 @@ export const resetUserPassword = async (req, res, next) => {
   }
 };
 
+export const forcePasswordReset = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const targetUser = await User.findById(id).populate('role');
+    if (!targetUser) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    if (targetUser.role?.key === 'super_admin' && req.userRole !== 'super_admin') {
+      return sendError(res, 'Admins cannot force password reset on super_admins', 403);
+    }
+
+    targetUser.mustChangePassword = true;
+    targetUser.failedLoginAttempts = 0;
+    targetUser.lockUntil = null;
+    await targetUser.save();
+
+    await logAudit({
+      req,
+      action: 'ADMIN_FORCE_PASSWORD_RESET',
+      entity: 'User',
+      entityId: id,
+    });
+
+    return sendSuccess(
+      res,
+      targetUser,
+      `User ${targetUser.email} must change password on their next login`
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
