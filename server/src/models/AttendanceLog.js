@@ -52,6 +52,11 @@ const attendanceLogSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    bulkActionId: {
+      type: String,
+      default: null,
+      index: true,
+    },
   },
   { timestamps: true }
 );

@@ -374,7 +374,9 @@ export const calculateDayStatus = async (employeeId, dateInput, options = {}) =>
     workedMinutes = 0;
   } else if (remote) {
     statusKey = 'REMOTE_WORK';
-    if (workedMinutes === 0) workedMinutes = targetWorkingMinutes;
+    if (workedMinutes === 0) {
+      workedMinutes = policy.creditFullHoursAutomatically !== false ? targetWorkingMinutes : 0;
+    }
   } else if (holiday) {
     if (activeLogs.length > 0 && workedMinutes >= (policy.halfDayMinMinutes || 240)) {
       statusKey = 'LOG_OK';

@@ -14,6 +14,8 @@ import {
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import requestsRoutes from './requests.routes.js';
+import bulkRoutes from './bulkAttendance.routes.js';
+import rosterRoutes from './roster.routes.js';
 
 const router = Router();
 
@@ -21,6 +23,12 @@ router.use(requireAuth);
 
 // Requests sub-routes (regularization, leave, remote-work, partial-day, comp-off)
 router.use('/requests', requestsRoutes);
+
+// Bulk Attendance sub-routes
+router.use('/bulk', bulkRoutes);
+
+// Shift Roster sub-routes
+router.use('/roster', rosterRoutes);
 
 // Calendar & self-service
 router.get('/calendar', getAttendanceCalendar);

@@ -38,6 +38,14 @@ const attendancePolicySchema = new mongoose.Schema(
       type: Number,
       default: 60,
     },
+    attendanceLockedUpToDate: {
+      type: Date,
+      default: null, // Any punch/shift modification on or before this date is rejected
+    },
+    creditFullHoursAutomatically: {
+      type: Boolean,
+      default: true, // Default ON: WFH credits full shift hours (465m)
+    },
     isDefault: {
       type: Boolean,
       default: true,

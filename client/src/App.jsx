@@ -31,6 +31,8 @@ import ApplyLeave from './pages/attendance/ApplyLeave';
 import ApplyRemoteWork from './pages/attendance/ApplyRemoteWork';
 import ApplyPartialDay from './pages/attendance/ApplyPartialDay';
 import ApplyCompOff from './pages/attendance/ApplyCompOff';
+import ManageBulkPunch from './pages/attendance/ManageBulkPunch';
+import ShiftRoster from './pages/attendance/ShiftRoster';
 
 export const App = () => {
   return (
@@ -163,16 +165,16 @@ export const App = () => {
         <Route
           path="hrms/attendance/bulk-logs"
           element={
-            <ProtectedRoute>
-              <ModuleComingSoon />
+            <ProtectedRoute requiredPermission={['attendance.manage', 'hr.access', 'employee.read']}>
+              <ManageBulkPunch />
             </ProtectedRoute>
           }
         />
         <Route
           path="hrms/attendance/roster"
           element={
-            <ProtectedRoute>
-              <ModuleComingSoon />
+            <ProtectedRoute requiredPermission={['attendance.read', 'shift.manage', 'employee.read']}>
+              <ShiftRoster />
             </ProtectedRoute>
           }
         />

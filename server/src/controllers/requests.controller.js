@@ -326,7 +326,16 @@ export const applyLeaveRequest = async (req, res, next) => {
       return sendError(res, 'Invalid leave type selected', 404);
     }
 
-    // Compute billable days (skips Sundays and holidays)
+    const emp = await Employee.findById(employeeId);
+
+    // Probation leave rule: only employees with status 'probation' can apply
+    if (['PL', 'PROBATION'].includes(leaveType.code) && emp?.status !== 'probation') {
+      return sendError(
+        res,
+        'Probation leave is strictly reserved for employees currently on probation status',
+        400
+      );
+    }
     const { workingDaysCount } = await calculateBillableDays(start, end);
     if (workingDaysCount === 0) {
       return sendError(res, 'The selected date range contains only Sundays or company holidays', 400);
@@ -405,7 +414,6 @@ export const applyLeaveRequest = async (req, res, next) => {
       appliedBy: isOnBehalf ? req.user._id : null,
     });
 
-    const emp = await Employee.findById(employeeId);
     const title = `${leaveType.name} Application (${calculatedDays} ${calculatedDays === 1 ? 'day' : 'days'})`;
 
     const approval = await createApprovalRequest({
@@ -445,6 +453,7 @@ export const getLeaveBalances = async (req, res, next) => {
 
     const types = await LeaveType.find({ isActive: true });
     const balances = await LeaveBalance.find({ employee: employeeId, year }).populate('leaveType');
+    const targetEmp = await Employee.findById(employeeId);
 
     // Also get active comp-off credit balance
     const activeCredits = await CompOffCredit.find({
@@ -457,7 +466,15 @@ export const getLeaveBalances = async (req, res, next) => {
       0
     );
 
-    const result = types.map((type) => {
+    const result = types
+      .filter((type) => {
+        // Hide probation leave if employee is confirmed / not on probation
+        if (['PL', 'PROBATION'].includes(type.code) && targetEmp?.status !== 'probation') {
+          return false;
+        }
+        return true;
+      })
+      .map((type) => {
       if (type.code === 'COMP_OFF') {
         const days = parseFloat((totalCompOffMinutes / 465).toFixed(2));
         return {

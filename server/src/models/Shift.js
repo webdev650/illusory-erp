@@ -19,6 +19,20 @@ const shiftSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+shiftSchema.pre('save', function () {
+  if (this.startTime && this.endTime) {
+    const [startH, startM] = this.startTime.split(':').map(Number);
+    const [endH, endM] = this.endTime.split(':').map(Number);
+    const startMins = startH * 60 + startM;
+    const endMins = endH * 60 + endM;
+
+    if (endMins <= startMins) {
+      throw new Error(
+        'Overnight shifts crossing midnight are not currently supported. Shift start time must be earlier than end time on the same day (planned future feature).'
+      );
+    }
+  }
+});
+
 export const Shift = mongoose.model('Shift', shiftSchema);
 export default Shift;
-

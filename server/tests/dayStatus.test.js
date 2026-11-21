@@ -252,9 +252,9 @@ describe('DAY-STATUS ATTENDANCE ENGINE (Single Source of Truth)', () => {
     it('should prioritize special shift assignment over default shift', async () => {
       const testDate = '2026-11-16';
       const specialShift = await Shift.create({
-        name: 'Night Studio Shift',
-        startTime: '18:00',
-        endTime: '02:00',
+        name: 'Late Studio Shift',
+        startTime: '14:00',
+        endTime: '22:00',
         workingMinutes: 480,
       });
 
@@ -268,8 +268,8 @@ describe('DAY-STATUS ATTENDANCE ENGINE (Single Source of Truth)', () => {
 
       const resolved = await resolveEmployeeShift(dummyEmpId, testDate);
       expect(resolved.type).toBe('special');
-      expect(resolved.shift.name).toBe('Night Studio Shift');
-      expect(resolved.shift.startTime).toBe('18:00');
+      expect(resolved.shift.name).toBe('Late Studio Shift');
+      expect(resolved.shift.startTime).toBe('14:00');
     });
   });
 });
