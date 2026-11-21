@@ -16,6 +16,9 @@ import {
   Unlock,
   Check,
   RotateCcw,
+  Calendar,
+  Trash2,
+  Edit2,
 } from 'lucide-react';
 
 export const Configurations = () => {
@@ -26,12 +29,24 @@ export const Configurations = () => {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [holidays, setHolidays] = useState([]);
+  const [holidayYear, setHolidayYear] = useState(2026);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState(null);
 
   // Modal states
   const [createUserModal, setCreateUserModal] = useState(false);
   const [createDeptModal, setCreateDeptModal] = useState(false);
+  const [holidayModal, setHolidayModal] = useState(false);
+  const [editingHoliday, setEditingHoliday] = useState(null);
+
+  // Holiday Form State
+  const [holidayForm, setHolidayForm] = useState({
+    name: '',
+    date: '',
+    type: 'festival',
+    description: '',
+  });
 
   // Form states
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -45,15 +60,17 @@ export const Configurations = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [usersRes, rolesRes, deptsRes] = await Promise.all([
+      const [usersRes, rolesRes, deptsRes, holidaysRes] = await Promise.all([
         api.get('/users'),
         api.get('/roles'),
         api.get('/departments'),
+        api.get(`/hr/holidays?year=${holidayYear}`),
       ]);
 
       if (usersRes.success) setUsers(usersRes.data);
       if (rolesRes.success) setRoles(rolesRes.data);
       if (deptsRes.success) setDepartments(deptsRes.data);
+      if (holidaysRes.success) setHolidays(holidaysRes.data);
     } catch (err) {
       console.warn('Failed to load configuration data', err);
     } finally {
@@ -63,7 +80,49 @@ export const Configurations = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [holidayYear]);
+
+  const handleSaveHoliday = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    try {
+      if (editingHoliday) {
+        const res = await api.put(`/hr/holidays/${editingHoliday._id}`, holidayForm);
+        if (res.success) {
+          setMsg(`Holiday updated successfully`);
+          setHolidayModal(false);
+          setEditingHoliday(null);
+          loadData();
+        }
+      } else {
+        const res = await api.post('/hr/holidays', holidayForm);
+        if (res.success) {
+          setMsg(`Holiday created successfully`);
+          setHolidayModal(false);
+          loadData();
+        }
+      }
+      setTimeout(() => setMsg(null), 3000);
+    } catch (err) {
+      alert(err.message || 'Failed to save holiday');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id, name) => {
+    if (!window.confirm(`Delete holiday "${name}"?`)) return;
+    try {
+      const res = await api.delete(`/hr/holidays/${id}`);
+      if (res.success) {
+        setMsg(`Holiday removed`);
+        setTimeout(() => setMsg(null), 3000);
+        loadData();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to delete holiday');
+    }
+  };
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -215,6 +274,18 @@ export const Configurations = () => {
         >
           <Building2 className="w-4 h-4" />
           <span>Departments ({departments.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('holidays')}
+          className={`pb-3 flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'holidays'
+              ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+              : 'border-transparent text-slate-400 hover:text-slate-700'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          <span>Holidays ({holidays.length})</span>
         </button>
       </div>
 
@@ -513,6 +584,200 @@ export const Configurations = () => {
                   className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold disabled:opacity-50"
                 >
                   {formLoading ? 'Adding...' : 'Save Department'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Holidays Management */}
+      {activeTab === 'holidays' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-slate-500">
+              Company-wide declared holidays. Seeded entries carry a <span className="font-semibold text-amber-600">Sample - verify with HR</span> tag.
+            </p>
+            <div className="flex items-center gap-2">
+              <select
+                value={holidayYear}
+                onChange={(e) => setHolidayYear(Number(e.target.value))}
+                className="px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+              >
+                <option value={2026}>Year 2026</option>
+                <option value={2027}>Year 2027</option>
+              </select>
+
+              <button
+                onClick={() => {
+                  setEditingHoliday(null);
+                  setHolidayForm({ name: '', date: '', type: 'festival', description: '' });
+                  setHolidayModal(true);
+                }}
+                className="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Holiday</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-slate-400 uppercase font-bold text-[10px]">
+                  <th className="py-3 px-6">Holiday Name</th>
+                  <th className="py-3 px-4">Date</th>
+                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Status / Verification</th>
+                  <th className="py-3 px-4">Description</th>
+                  <th className="py-3 px-6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {holidays.map((h) => (
+                  <tr key={h._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                    <td className="py-3 px-6 font-semibold text-slate-800 dark:text-slate-100">
+                      {h.name}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-300">
+                      {new Date(h.date).toLocaleDateString('en-IN', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="capitalize px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                        {h.type}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      {h.isSample ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          Sample - verify with HR
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          Verified Holiday
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-slate-500 italic max-w-xs truncate">
+                      {h.description || '-'}
+                    </td>
+                    <td className="py-3 px-6 text-right space-x-2">
+                      <button
+                        onClick={() => {
+                          setEditingHoliday(h);
+                          setHolidayForm({
+                            name: h.name,
+                            date: new Date(h.date).toISOString().split('T')[0],
+                            type: h.type || 'festival',
+                            description: h.description || '',
+                          });
+                          setHolidayModal(true);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-brand-600 rounded-lg transition-colors"
+                        title="Edit holiday"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteHoliday(h._id, h.name)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                        title="Delete holiday"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add / Edit Holiday */}
+      {holidayModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-700">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
+              {editingHoliday ? 'Edit Company Holiday' : 'Add New Company Holiday'}
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Configured holidays apply to studio attendance schedules and leave allowances.
+            </p>
+
+            <form onSubmit={handleSaveHoliday} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                  Holiday Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Diwali / Durga Puja"
+                  value={holidayForm.name}
+                  onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                  Date <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={holidayForm.date}
+                  onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">Category</label>
+                <select
+                  value={holidayForm.type}
+                  onChange={(e) => setHolidayForm({ ...holidayForm, type: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                >
+                  <option value="festival">Festival Holiday</option>
+                  <option value="national">National Holiday</option>
+                  <option value="restricted">Restricted / Optional Holiday</option>
+                  <option value="optional">Optional Holiday</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">Description / Remarks</label>
+                <input
+                  type="text"
+                  placeholder="Official celebration details..."
+                  value={holidayForm.description}
+                  onChange={(e) => setHolidayForm({ ...holidayForm, description: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setHolidayModal(false)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold disabled:opacity-50"
+                >
+                  {formLoading ? 'Saving...' : 'Save Holiday'}
                 </button>
               </div>
             </form>

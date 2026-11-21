@@ -26,6 +26,11 @@ import { AssetDetail } from './pages/AssetDetail';
 import ImportEmployees from './pages/ImportEmployees';
 import AttendanceCalendar from './pages/attendance/AttendanceCalendar';
 import ManageLogs from './pages/attendance/ManageLogs';
+import LogRegularization from './pages/attendance/LogRegularization';
+import ApplyLeave from './pages/attendance/ApplyLeave';
+import ApplyRemoteWork from './pages/attendance/ApplyRemoteWork';
+import ApplyPartialDay from './pages/attendance/ApplyPartialDay';
+import ApplyCompOff from './pages/attendance/ApplyCompOff';
 
 export const App = () => {
   return (
@@ -119,7 +124,7 @@ export const App = () => {
           path="hrms/attendance/regularization"
           element={
             <ProtectedRoute>
-              <ModuleComingSoon />
+              <LogRegularization />
             </ProtectedRoute>
           }
         />
@@ -127,7 +132,7 @@ export const App = () => {
           path="hrms/attendance/leave"
           element={
             <ProtectedRoute>
-              <ModuleComingSoon />
+              <ApplyLeave />
             </ProtectedRoute>
           }
         />
@@ -135,7 +140,7 @@ export const App = () => {
           path="hrms/attendance/remote-work"
           element={
             <ProtectedRoute>
-              <ModuleComingSoon />
+              <ApplyRemoteWork />
             </ProtectedRoute>
           }
         />
@@ -143,7 +148,7 @@ export const App = () => {
           path="hrms/attendance/partial-day"
           element={
             <ProtectedRoute>
-              <ModuleComingSoon />
+              <ApplyPartialDay />
             </ProtectedRoute>
           }
         />
@@ -151,7 +156,7 @@ export const App = () => {
           path="hrms/attendance/comp-off"
           element={
             <ProtectedRoute>
-              <ModuleComingSoon />
+              <ApplyCompOff />
             </ProtectedRoute>
           }
         />

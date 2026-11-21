@@ -11,6 +11,8 @@ const holidaySchema = new mongoose.Schema(
     },
     description: { type: String, default: '' },
     year: { type: Number, required: true, index: true },
+    isDemo: { type: Boolean, default: false, index: true },
+    isSample: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

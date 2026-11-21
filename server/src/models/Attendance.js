@@ -69,6 +69,11 @@ const attendanceSchema = new mongoose.Schema(
       type: String,
       default: 'Studio (Bhubaneswar)',
     },
+    isDemo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   { timestamps: true }
 );

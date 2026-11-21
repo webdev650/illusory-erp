@@ -29,6 +29,10 @@ const leaveRequestSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    minutes: {
+      type: Number,
+      default: 465,
+    },
     reason: {
       type: String,
       required: true,
@@ -47,6 +51,16 @@ const leaveRequestSchema = new mongoose.Schema(
     approvalRequest: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ApprovalRequest',
+    },
+    appliedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    isDemo: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   { timestamps: true }

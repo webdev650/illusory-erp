@@ -13,10 +13,14 @@ import {
 } from '../controllers/attendanceSuite.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
+import requestsRoutes from './requests.routes.js';
 
 const router = Router();
 
 router.use(requireAuth);
+
+// Requests sub-routes (regularization, leave, remote-work, partial-day, comp-off)
+router.use('/requests', requestsRoutes);
 
 // Calendar & self-service
 router.get('/calendar', getAttendanceCalendar);

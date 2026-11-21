@@ -183,20 +183,26 @@ async function seedPhase1() {
       type: 'festival',
       year: 2026,
       description: 'Diwali celebration (Sample holiday as in design reference)',
+      isDemo: true,
+      isSample: true,
     },
     {
       name: 'Rasa Purnima / Boita Bandana',
       date: new Date('2026-11-24T00:00:00.000Z'),
       type: 'festival',
       year: 2026,
-      description: 'Odisha maritime heritage festival',
+      description: 'Odisha maritime heritage festival (Sample - verify with HR)',
+      isDemo: true,
+      isSample: true,
     },
     {
       name: 'Guru Nanak Jayanti',
       date: new Date('2026-11-25T00:00:00.000Z'),
       type: 'restricted',
       year: 2026,
-      description: 'Guru Nanak Prakash Parv (Restricted / Optional)',
+      description: 'Guru Nanak Prakash Parv (Restricted / Optional - Sample - verify with HR)',
+      isDemo: true,
+      isSample: true,
     },
   ];
 
@@ -250,6 +256,7 @@ async function seedPhase1() {
         time: inTime,
         source: 'web',
         note: 'Biometric Web Punch',
+        isDemo: true,
       });
 
       // Break in / Break out
@@ -261,6 +268,7 @@ async function seedPhase1() {
         time: breakInTime,
         source: 'web',
         note: 'Studio Lunch Break',
+        isDemo: true,
       });
       await recordPunch({
         employeeId: emp._id,
@@ -268,6 +276,7 @@ async function seedPhase1() {
         time: breakOutTime,
         source: 'web',
         note: 'Resumed from Lunch',
+        isDemo: true,
       });
 
       if (!isMissingOut) {
@@ -278,6 +287,7 @@ async function seedPhase1() {
           time: outTime,
           source: 'web',
           note: 'EOD Sign Off',
+          isDemo: true,
         });
       }
     }

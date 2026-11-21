@@ -7,6 +7,8 @@ import { connectDB } from '../config/db.js';
 import { User } from '../models/User.js';
 import { Employee } from '../models/Employee.js';
 import { Attendance } from '../models/Attendance.js';
+import { AttendanceLog } from '../models/AttendanceLog.js';
+import { Holiday } from '../models/Holiday.js';
 import { LeaveRequest } from '../models/LeaveRequest.js';
 import { LeaveBalance } from '../models/LeaveBalance.js';
 import Task from '../models/Task.js';
@@ -17,6 +19,12 @@ import Timesheet from '../models/Timesheet.js';
 import ActiveTimer from '../models/ActiveTimer.js';
 import Notification from '../models/Notification.js';
 import { AuditLog } from '../models/AuditLog.js';
+import { RemoteWorkRequest } from '../models/RemoteWorkRequest.js';
+import { AttendanceRegularization } from '../models/AttendanceRegularization.js';
+import { PartialDayRequest } from '../models/PartialDayRequest.js';
+import { CompOffRequest } from '../models/CompOffRequest.js';
+import { CompOffCredit } from '../models/CompOffCredit.js';
+import { ApprovalRequest } from '../models/ApprovalRequest.js';
 import '../models/Role.js';
 import '../models/Department.js';
 
@@ -73,11 +81,38 @@ export const runCleanup = async () => {
     console.log(`   - Demo Users     : ${demoUsers.length}`);
     console.log(`   - Demo Employees : ${demoEmployees.length}`);
 
-    // 3. Purge associated synthetic logs
+    // Ask for user confirmation if not bypassed with --yes
+    const autoConfirm = process.argv.includes('--yes') || process.argv.includes('-y');
+    if (!autoConfirm) {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      const answer = await new Promise((resolve) => {
+        rl.question('⚠️  Are you sure you want to permanently delete all demo data and sample seeded logs? (yes/no): ', (ans) => {
+          rl.close();
+          resolve(ans.trim().toLowerCase());
+        });
+      });
+
+      if (answer !== 'yes' && answer !== 'y') {
+        console.log('🛑 Cleanup aborted by user. No data was deleted.');
+        process.exit(0);
+      }
+    }
+
+    // 3. Purge associated synthetic logs & sample seed records
+    const attLogRes = await AttendanceLog.deleteMany({ isDemo: true });
+    const demoAttRes = await Attendance.deleteMany({ isDemo: true });
+    const holidayRes = await Holiday.deleteMany({ isDemo: true });
+    const demoRemoteRes = await RemoteWorkRequest.deleteMany({ isDemo: true });
+    const demoRegRes = await AttendanceRegularization.deleteMany({ isDemo: true });
+    const demoPdRes = await PartialDayRequest.deleteMany({ isDemo: true });
+    const demoCompOffReqRes = await CompOffRequest.deleteMany({ isDemo: true });
+    const demoCompOffCreditRes = await CompOffCredit.deleteMany({ isDemo: true });
+    const demoApprovalRes = await ApprovalRequest.deleteMany({ isDemo: true });
+
     const attRes = await Attendance.deleteMany({
       $or: [{ employee: { $in: demoEmpIds } }, { employee: { $nin: (await Employee.find({ 'personal.officialEmail': { $in: REAL_EMAILS } }, '_id')).map(e => e._id) } }],
     });
-    const leaveReqRes = await LeaveRequest.deleteMany({ employee: { $in: demoEmpIds } });
+    const leaveReqRes = await LeaveRequest.deleteMany({ $or: [{ isDemo: true }, { employee: { $in: demoEmpIds } }] });
     const leaveBalRes = await LeaveBalance.deleteMany({ employee: { $in: demoEmpIds } });
     const timeEntryRes = await TimeEntry.deleteMany({ employee: { $in: demoEmpIds } });
     const timesheetRes = await Timesheet.deleteMany({ employee: { $in: demoEmpIds } });
@@ -95,8 +130,11 @@ export const runCleanup = async () => {
     console.log('\n🗑️  Deletion Summary:');
     console.log(`   ✓ Users deleted            : ${userRes.deletedCount}`);
     console.log(`   ✓ Employees deleted        : ${empRes.deletedCount}`);
-    console.log(`   ✓ Attendance logs deleted  : ${attRes.deletedCount}`);
-    console.log(`   ✓ Leave requests deleted   : ${leaveReqRes.deletedCount}`);
+    console.log(`   ✓ Seeded demo punches      : ${attLogRes.deletedCount}`);
+    console.log(`   ✓ Seeded demo attendance   : ${demoAttRes.deletedCount + attRes.deletedCount}`);
+    console.log(`   ✓ Sample holidays purged   : ${holidayRes.deletedCount}`);
+    console.log(`   ✓ Demo leave requests      : ${leaveReqRes.deletedCount}`);
+    console.log(`   ✓ Demo remote work reqs    : ${demoRemoteRes.deletedCount}`);
     console.log(`   ✓ Leave balances deleted   : ${leaveBalRes.deletedCount}`);
     console.log(`   ✓ Time entries deleted     : ${timeEntryRes.deletedCount}`);
     console.log(`   ✓ Timesheets deleted       : ${timesheetRes.deletedCount}`);

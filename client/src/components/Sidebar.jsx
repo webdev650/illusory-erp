@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePreferences } from '../context/PreferencesContext';
 import { ERP_MODULES } from '../config/modules';
+import api from '../api/axios';
 import {
   Home,
   Users,
@@ -101,6 +102,27 @@ export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
   const isLevel2Collapsed = preferences?.sidebarCollapsed ?? false;
   const pinnedList = preferences?.pinnedModules || [];
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPending = async () => {
+      try {
+        const res = await api.get('/approvals/pending-for-me');
+        if (isMounted && res.success && Array.isArray(res.data)) {
+          setPendingApprovalsCount(res.data.length);
+        }
+      } catch (err) {
+        // Silently skip if unauthenticated
+      }
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 45000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Allowed modules based on RBAC
   const visibleModules = useMemo(() => {
@@ -240,6 +262,13 @@ export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     }`}
                   >
                     <Icon className="w-5 h-5" />
+
+                    {/* Pending Count Badge */}
+                    {item.key === 'hrms' && pendingApprovalsCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-slate-950 font-bold text-[9px] rounded-full flex items-center justify-center ring-2 ring-slate-950 shadow-md">
+                        {pendingApprovalsCount > 9 ? '9+' : pendingApprovalsCount}
+                      </span>
+                    )}
 
                     {/* Active Pip */}
                     {isActive && (

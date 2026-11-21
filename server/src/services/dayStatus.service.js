@@ -535,7 +535,7 @@ export const getEmployeeMonthDayStatuses = async (employeeId, year, month) => {
 /**
  * Record a new punch and synchronize with the daily Attendance record
  */
-export const recordPunch = async ({ employeeId, type, time, source = 'web', note = '', changedBy = null }) => {
+export const recordPunch = async ({ employeeId, type, time, source = 'web', note = '', changedBy = null, isDemo = false }) => {
   const punchTime = time ? new Date(time) : new Date();
   const dateStr = toISTDateString(punchTime);
 
@@ -547,6 +547,7 @@ export const recordPunch = async ({ employeeId, type, time, source = 'web', note
     source,
     note,
     changedBy,
+    isDemo,
   });
 
   // Synchronize daily Attendance record for backwards compatibility
@@ -573,7 +574,10 @@ export const recordPunch = async ({ employeeId, type, time, source = 'web', note
       date: targetDateUTC,
       status: 'present',
       source,
+      isDemo,
     });
+  } else if (isDemo) {
+    attendance.isDemo = true;
   }
 
   if (inLog) attendance.checkIn = inLog.time;

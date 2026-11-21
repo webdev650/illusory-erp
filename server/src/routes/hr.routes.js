@@ -93,10 +93,10 @@ router.get('/leave/all', requirePermission('leave.manage'), getAllLeaveRequests)
 // --- Holiday Endpoints ---
 router.get('/holidays', listHolidays);
 router.get('/holidays/upcoming', getUpcomingHolidays);
-router.post('/holidays', requirePermission('holiday.manage'), createHoliday);
-router.put('/holidays/:id', requirePermission('holiday.manage'), updateHoliday);
-router.delete('/holidays/:id', requirePermission('holiday.manage'), deleteHoliday);
-router.post('/holidays/bulk', requirePermission('holiday.manage'), bulkImportHolidays);
+router.post('/holidays', requirePermission(['holiday.manage', 'hr.access', 'system.manage']), createHoliday);
+router.put('/holidays/:id', requirePermission(['holiday.manage', 'hr.access', 'system.manage']), updateHoliday);
+router.delete('/holidays/:id', requirePermission(['holiday.manage', 'hr.access', 'system.manage']), deleteHoliday);
+router.post('/holidays/bulk', requirePermission(['holiday.manage', 'hr.access', 'system.manage']), bulkImportHolidays);
 
 // --- Announcement & Celebration Endpoints ---
 router.get('/announcements', listAnnouncements);

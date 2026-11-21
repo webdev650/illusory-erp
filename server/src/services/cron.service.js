@@ -9,6 +9,9 @@ import Asset from '../models/Asset.js';
 import AssetAssignment from '../models/AssetAssignment.js';
 import SoftwareLicense from '../models/SoftwareLicense.js';
 import MaintenanceRecord from '../models/MaintenanceRecord.js';
+import CompOffCredit from '../models/CompOffCredit.js';
+import ApprovalRequest from '../models/ApprovalRequest.js';
+import User from '../models/User.js';
 import { normalizeToKolkataMidnight } from '../utils/dateUtils.js';
 import { toISTDateString } from './dayStatus.service.js';
 import { getWeekBounds } from './activity.service.js';
@@ -320,8 +323,102 @@ export const initCronJobs = () => {
     }
   );
 
+  // 6. Run daily at 01:00 AM Asia/Kolkata: Comp-Off Expiry & 7-Day Expiry Alert
+  cron.schedule(
+    '0 1 * * *',
+    async () => {
+      console.log('⏰ [Cron] Running 01:00 IST Comp-Off credit expiry & warning sweep...');
+      try {
+        const now = new Date();
+        const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        // A. Expire overdue active credits
+        const expiredResult = await CompOffCredit.updateMany(
+          {
+            status: 'active',
+            expiresAt: { $lt: now },
+          },
+          { $set: { status: 'expired' } }
+        );
+        if (expiredResult.modifiedCount > 0) {
+          console.log(`⏰ [Cron] Expired ${expiredResult.modifiedCount} outdated comp-off credits.`);
+        }
+
+        // B. 7-Day Warning for credits expiring soon
+        const expiringSoon = await CompOffCredit.find({
+          status: 'active',
+          expiresAt: { $gte: now, $lte: in7Days },
+        });
+
+        for (const credit of expiringSoon) {
+          const daysLeft = Math.max(1, Math.ceil((new Date(credit.expiresAt) - now) / (1000 * 60 * 60 * 24)));
+          const availableHours = ((credit.creditMinutes - credit.usedMinutes) / 60).toFixed(1);
+          await notifyEmployee(credit.employee, {
+            title: 'Comp-Off Credit Expiring Soon ⚠️',
+            message: `You have ${availableHours} hrs of comp-off credit expiring in ${daysLeft} days (${new Date(credit.expiresAt).toLocaleDateString('en-IN')}). Apply for comp-off leave before it lapses!`,
+            link: '/hrms/attendance/leave',
+            type: 'comp_off_alert',
+          });
+        }
+      } catch (err) {
+        console.error('❌ [Cron Error] Comp-off expiry sweep failed:', err.message);
+      }
+    },
+    { timezone: 'Asia/Kolkata' }
+  );
+
+  // 7. Run daily at 09:30 AM Asia/Kolkata: Pending Approval 2-Day Reminder
+  cron.schedule(
+    '30 9 * * *',
+    async () => {
+      console.log('⏰ [Cron] Running 09:30 IST 2-day pending approval reminders...');
+      try {
+        const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+        const overdueRequests = await ApprovalRequest.find({
+          status: 'pending',
+          createdAt: { $lte: twoDaysAgo },
+        }).populate('requestedBy', 'personal.firstName personal.lastName');
+
+        for (const reqItem of overdueRequests) {
+          const stepIndex = reqItem.currentStep - 1;
+          const currentStep = reqItem.steps[stepIndex];
+          if (!currentStep || currentStep.status !== 'pending') continue;
+
+          const requesterName = `${reqItem.requestedBy?.personal?.firstName || 'Employee'} ${reqItem.requestedBy?.personal?.lastName || ''}`.trim();
+          const title = `Reminder: Pending Approval for ${reqItem.type.replace('_', ' ')}`;
+          const message = `${requesterName}'s request "${reqItem.title}" has been waiting for review for over 48 hours. Please review.`;
+
+          if (currentStep.approverEmployee) {
+            await notifyEmployee(currentStep.approverEmployee, {
+              title,
+              message,
+              link: '/hr?tab=approvals',
+              type: 'approval_reminder',
+            });
+          } else if (currentStep.approverRole) {
+            const roleUsers = await User.find({ isActive: true }).populate({
+              path: 'role',
+              match: { key: { $in: [currentStep.approverRole, 'super_admin'] } },
+            });
+            for (const u of roleUsers.filter((u) => u.role && u.employee)) {
+              await notifyEmployee(u.employee, {
+                title,
+                message,
+                link: '/hr?tab=approvals',
+                type: 'approval_reminder',
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('❌ [Cron Error] Approver reminder job failed:', err.message);
+      }
+    },
+    { timezone: 'Asia/Kolkata' }
+  );
+
   console.log(
-    '🕒 Node-Cron registered: Attendance (23:59 IST), Tasks & Assets (09:00 IST), Timesheet Reminders (Fri 17:00 & Mon 10:00 IST)'
+    '🕒 Node-Cron registered: Attendance (23:59 IST), Tasks & Assets (09:00 IST), Timesheet Reminders, Comp-Off Expiry (01:00 IST), Approver Reminders (09:30 IST)'
   );
 };
 
