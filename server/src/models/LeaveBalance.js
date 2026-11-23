@@ -14,11 +14,85 @@ const leaveBalanceSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    policyYear: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'LeavePolicyYear',
+      default: null,
+      index: true,
+    },
     year: {
       type: Number,
       required: true,
       index: true,
     },
+    // Integer minutes storage (primary source of truth)
+    openingMinutes: {
+      type: Number,
+      default: 0,
+    },
+    entitlementMinutes: {
+      type: Number,
+      default: 0,
+    },
+    carriedInMinutes: {
+      type: Number,
+      default: 0,
+    },
+    takenMinutes: {
+      type: Number,
+      default: 0,
+    },
+    pendingMinutes: {
+      type: Number,
+      default: 0,
+    },
+    closingMinutes: {
+      type: Number,
+      default: 0,
+    },
+    forwardType: {
+      type: String,
+      enum: ['lapsed', 'carry_forward', 'encash'],
+      default: 'lapsed',
+    },
+    settlementMinutes: {
+      type: Number,
+      default: 0,
+    },
+    encashedMinutes: {
+      type: Number,
+      default: 0,
+    },
+    lapsedMinutes: {
+      type: Number,
+      default: 0,
+    },
+    carriedForwardMinutes: {
+      type: Number,
+      default: 0,
+    },
+    isSettled: {
+      type: Boolean,
+      default: false,
+    },
+    settledAt: {
+      type: Date,
+      default: null,
+    },
+    isFinalised: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isDirty: {
+      type: Boolean,
+      default: false,
+    },
+    overrideReason: {
+      type: String,
+      default: '',
+    },
+    // Legacy day counters (maintained for backward compatibility)
     allocated: {
       type: Number,
       default: 0,
@@ -34,6 +108,11 @@ const leaveBalanceSchema = new mongoose.Schema(
     pending: {
       type: Number,
       default: 0,
+    },
+    isDemo: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   { timestamps: true }

@@ -33,6 +33,8 @@ import ApplyPartialDay from './pages/attendance/ApplyPartialDay';
 import ApplyCompOff from './pages/attendance/ApplyCompOff';
 import ManageBulkPunch from './pages/attendance/ManageBulkPunch';
 import ShiftRoster from './pages/attendance/ShiftRoster';
+import LeaveBalanceSettlement from './pages/attendance/LeaveBalanceSettlement';
+import AttendanceReports from './pages/attendance/AttendanceReports';
 
 export const App = () => {
   return (
@@ -181,8 +183,16 @@ export const App = () => {
         <Route
           path="hrms/attendance/settlement"
           element={
-            <ProtectedRoute>
-              <ModuleComingSoon />
+            <ProtectedRoute requiredPermission={['leave.settle', 'hr.access']}>
+              <LeaveBalanceSettlement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/reports"
+          element={
+            <ProtectedRoute requiredPermission={['reports.view', 'attendance.manage', 'hr.access']}>
+              <AttendanceReports />
             </ProtectedRoute>
           }
         />

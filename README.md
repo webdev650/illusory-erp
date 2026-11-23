@@ -240,3 +240,36 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 7. **CSV Bulk Import & Export**:
    - In `/assets`, click **Export CSV**. Open the downloaded CSV and verify all 30 assets are exported with accurate status and serial numbers.
    - Click **Import CSV** &rarr; download sample CSV template &rarr; upload modified rows and verify real-time import summary and error reporting.
+
+
+---
+
+## 🕒 HRMS Attendance Suite & Leave Balance Settlement (Phases 1–4)
+
+A complete, production-grade Attendance & Leave system built for Illusory Design Studios (Bhubaneswar, Odisha).
+
+### 📋 Complete 10-Page Attendance Submenu
+| # | Page Name | Route | Allowed Roles / Permissions | Key Capabilities |
+|---|---|---|---|---|
+| 1 | **Attendance Calendar** | `/hrms/attendance/calendar` | All Employees (Own) / HR & Admin (All) | Full visual calendar, punch drilldowns, OT/Late badges, Odisha holidays & week-offs |
+| 2 | **Apply Log Regularization** | `/hrms/attendance/regularization` | All Employees (`attendance.record`) | Request missed check-in/out or break adjustments with mandatory reason |
+| 3 | **Apply Leave** | `/hrms/attendance/leave` | All Employees (`leave.apply`) | Multi-day / half-day leave with live balance checks, attachments, & holiday skip |
+| 4 | **Apply Remote Work** | `/hrms/attendance/remote-work` | All Employees (`attendance.remoteWork`) | Requisition WFH days with task plans; auto-credits 465 mins attendance on approval |
+| 5 | **Apply Partial Day** | `/hrms/attendance/partial-day` | All Employees (`attendance.record`) | Late arrival or early departure passes (up to 2h per pass, max 3 per month) |
+| 6 | **Apply Comp-Off Credits** | `/hrms/attendance/comp-off` | All Employees (`leave.apply`) | Requisition comp-off for working on week-off/holiday with automated biometric presence check |
+| 7 | **Manage Logs** | `/hrms/attendance/manage-logs` | HR & Admin (`attendance.manage`) | Studio-wide daily punch editor, manual in/out adjustments, audit log trail |
+| 8 | **Manage Bulk In/Out** | `/hrms/attendance/bulk-punch` | HR & Admin (`attendance.manage`) | Batch check-in/out across departments with preview and 1-click atomic undo |
+| 9 | **Shift Roster** | `/hrms/attendance/roster` | HR & Admin (`attendance.manage`) / Managers | Monthly shift scheduling (General 9:30-18:00, Evening, Night), bulk rotation & swap |
+| 10 | **Leave Balance Settlement** | `/hrms/attendance/settlement` | HR & Admin (`leave.settle`) | Annual year-end policy closing, carry forward / lapse / encash math, lock enforcement |
+| + | **Attendance Reports** | `/hrms/attendance/reports` | HR & Admin (`reports.view`) / Managers (Team) | 10 executive registers (Late arrivals, Monthly Register, Overtime, Absentee, etc.) |
+
+### 🧮 Settlement Calculation Engine
+Balances are stored in **integer minutes** (never rounded in DB; displayed as days at 7.75 hrs = 465 mins/day):
+- **Closing Balance**: `closing = opening + entitlement + carriedIn - taken - pending - encashed`
+- **Carry Forward**: `carryForward = min(closing * forwardPercentage, maxCarryForward)`
+- **Lapsed Balance**: `lapsed = closing - carryForward - encashed`
+- **Actions**:
+  - `Draft`: Saves editable overrides without affecting next year.
+  - `Save With Settlement`: Atomically creates/updates opening balances for the subsequent policy year.
+  - `Finalise`: Blocks further leave/regularization edits in the year; sets `attendanceLockedUpToDate`.
+  - `Reopen`: Super Admin only; requires mandatory justification and validates no carry-in balances have been utilized.

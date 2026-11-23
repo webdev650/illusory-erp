@@ -16,6 +16,8 @@ import { requirePermission } from '../middleware/rbac.js';
 import requestsRoutes from './requests.routes.js';
 import bulkRoutes from './bulkAttendance.routes.js';
 import rosterRoutes from './roster.routes.js';
+import settlementRoutes from './settlement.routes.js';
+import reportsRoutes from './attendanceReports.routes.js';
 
 const router = Router();
 
@@ -29,6 +31,12 @@ router.use('/bulk', bulkRoutes);
 
 // Shift Roster sub-routes
 router.use('/roster', rosterRoutes);
+
+// Leave Balance Settlement sub-routes
+router.use('/settlement', settlementRoutes);
+
+// Attendance & Leave Reports sub-routes
+router.use('/reports', reportsRoutes);
 
 // Calendar & self-service
 router.get('/calendar', getAttendanceCalendar);

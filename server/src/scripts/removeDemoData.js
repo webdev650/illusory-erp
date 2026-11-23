@@ -25,6 +25,9 @@ import { PartialDayRequest } from '../models/PartialDayRequest.js';
 import { CompOffRequest } from '../models/CompOffRequest.js';
 import { CompOffCredit } from '../models/CompOffCredit.js';
 import { ApprovalRequest } from '../models/ApprovalRequest.js';
+import { LeavePolicyYear } from '../models/LeavePolicyYear.js';
+import { SettlementAudit } from '../models/SettlementAudit.js';
+import { LeaveLedger } from '../models/LeaveLedger.js';
 import '../models/Role.js';
 import '../models/Department.js';
 
@@ -108,6 +111,9 @@ export const runCleanup = async () => {
     const demoCompOffReqRes = await CompOffRequest.deleteMany({ isDemo: true });
     const demoCompOffCreditRes = await CompOffCredit.deleteMany({ isDemo: true });
     const demoApprovalRes = await ApprovalRequest.deleteMany({ isDemo: true });
+    const demoPolicyYearRes = await LeavePolicyYear.deleteMany({ isDemo: true });
+    const demoAuditRes = await SettlementAudit.deleteMany({ isDemo: true });
+    const demoLedgerRes = await LeaveLedger.deleteMany({ isDemo: true });
 
     const attRes = await Attendance.deleteMany({
       $or: [{ employee: { $in: demoEmpIds } }, { employee: { $nin: (await Employee.find({ 'personal.officialEmail': { $in: REAL_EMAILS } }, '_id')).map(e => e._id) } }],
