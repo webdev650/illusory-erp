@@ -35,6 +35,7 @@ export const EmployeeDetail = () => {
   const [loadingClearance, setLoadingClearance] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState('active');
+  const [confirmationDate, setConfirmationDate] = useState(new Date().toISOString().split('T')[0]);
   const [statusRemarks, setStatusRemarks] = useState('');
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -145,16 +146,17 @@ export const EmployeeDetail = () => {
     try {
       const res = await api.patch(`/employees/${id}/status`, {
         status: newStatus,
-        remarks: statusRemarks,
+        confirmationDate: newStatus === 'active' ? confirmationDate : null,
+        reason: statusRemarks,
       });
       if (res.success) {
         setEmployee(res.data);
         setStatusModalOpen(false);
-        setMsg('Employee status updated successfully!');
-        setTimeout(() => setMsg(null), 3000);
+        setMsg('Employment status updated and leave balances recalculated successfully!');
+        setTimeout(() => setMsg(null), 3500);
       }
     } catch (err) {
-      alert(err.message || 'Failed to update status');
+      alert(err.response?.data?.message || err.message || 'Failed to update status');
     }
   };
 
@@ -741,52 +743,81 @@ export const EmployeeDetail = () => {
         </div>
       )}
 
-      {/* Status Modal */}
+      {/* Set Employment Status Modal */}
       {statusModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-700">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-3">Transition Status</h3>
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-700">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">Set Employment Status</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Transition status for {employee?.personal?.firstName} {employee?.personal?.lastName}. This action is audit logged and recalculates leave balances.
+            </p>
             <form onSubmit={handleStatusChange} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-600 mb-1">New Employment Status</label>
+                <label className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Employment Status</label>
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium"
                 >
-                  <option value="active">Active</option>
-                  <option value="probation">Probation</option>
-                  <option value="notice">On Notice</option>
+                  <option value="probation">Probation (Under Evaluation)</option>
+                  <option value="active">Confirmed (Full-Time Regular)</option>
+                  <option value="notice">On Notice (Resigned / Serving Notice)</option>
                   <option value="resigned">Resigned</option>
                   <option value="terminated">Terminated</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
 
+              {newStatus === 'active' && (
+                <div>
+                  <label className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Confirmation Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={confirmationDate}
+                    onChange={(e) => setConfirmationDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Date when probation was successfully completed and employment was confirmed.
+                  </p>
+                </div>
+              )}
+
               <div>
-                <label className="block text-slate-600 mb-1">Remarks / Reason</label>
+                <label className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Reason / HR Remarks</label>
                 <textarea
                   rows={3}
+                  required
                   value={statusRemarks}
                   onChange={(e) => setStatusRemarks(e.target.value)}
-                  placeholder="Reason for status change..."
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  placeholder="Mandatory justification (e.g. Completed 6-month probation review, Evaluation sign-off, Resignation accepted)..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
                 />
+              </div>
+
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <span>
+                  {newStatus === 'active'
+                    ? 'Confirming status will automatically recalculate balances and retire future Probation Leave while safely preserving any historical taken records.'
+                    : 'Changing to probation will recalculate 2026 pro-rata entitlements including Probation Leave eligibility.'}
+                </span>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setStatusModalOpen(false)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600"
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-xl bg-brand-600 text-white font-semibold"
+                  className="px-4 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold shadow-sm"
                 >
-                  Confirm Change
+                  Set Employment Status
                 </button>
               </div>
             </form>

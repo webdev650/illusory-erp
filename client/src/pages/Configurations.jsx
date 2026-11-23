@@ -19,6 +19,8 @@ import {
   Calendar,
   Trash2,
   Edit2,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const Configurations = () => {
@@ -30,6 +32,8 @@ export const Configurations = () => {
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [holidays, setHolidays] = useState([]);
+  const [shifts, setShifts] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [holidayYear, setHolidayYear] = useState(2026);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState(null);
@@ -39,6 +43,15 @@ export const Configurations = () => {
   const [createDeptModal, setCreateDeptModal] = useState(false);
   const [holidayModal, setHolidayModal] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState(null);
+  const [assignShiftModal, setAssignShiftModal] = useState(false);
+  const [assignForm, setAssignForm] = useState({
+    employeeId: '',
+    shiftId: '',
+    startDate: new Date().toISOString().split('T')[0],
+    type: 'special',
+    reason: '',
+  });
+  const [assignLoading, setAssignLoading] = useState(false);
 
   // Holiday Form State
   const [holidayForm, setHolidayForm] = useState({
@@ -60,21 +73,59 @@ export const Configurations = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [usersRes, rolesRes, deptsRes, holidaysRes] = await Promise.all([
+      const [usersRes, rolesRes, deptsRes, holidaysRes, shiftsRes, empsRes] = await Promise.all([
         api.get('/users'),
         api.get('/roles'),
         api.get('/departments'),
         api.get(`/hr/holidays?year=${holidayYear}`),
+        api.get('/attendance/roster/shifts').catch(() => ({ data: [] })),
+        api.get('/employees').catch(() => ({ data: [] })),
       ]);
 
       if (usersRes.success) setUsers(usersRes.data);
       if (rolesRes.success) setRoles(rolesRes.data);
       if (deptsRes.success) setDepartments(deptsRes.data);
       if (holidaysRes.success) setHolidays(holidaysRes.data);
+      if (shiftsRes?.data) setShifts(shiftsRes.data);
+      if (empsRes?.data) setEmployees(empsRes.data);
     } catch (err) {
       console.warn('Failed to load configuration data', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAssignShift = async (e) => {
+    e.preventDefault();
+    setAssignLoading(true);
+    try {
+      const res = await api.post('/attendance/roster/assign', {
+        assignments: [
+          {
+            employeeId: assignForm.employeeId,
+            date: assignForm.startDate,
+            shiftId: assignForm.shiftId,
+            type: assignForm.type,
+          },
+        ],
+        reason: assignForm.reason || 'Assigned via Configurations > Shifts',
+      });
+      if (res.success) {
+        setMsg('Shift assigned successfully!');
+        setAssignShiftModal(false);
+        setAssignForm({
+          employeeId: '',
+          shiftId: '',
+          startDate: new Date().toISOString().split('T')[0],
+          type: 'special',
+          reason: '',
+        });
+        loadData();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to assign shift');
+    } finally {
+      setAssignLoading(false);
     }
   };
 
@@ -696,6 +747,271 @@ export const Configurations = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 5: Shifts & Timings */}
+      {activeTab === 'shifts' && (
+        <div className="space-y-6">
+          {/* HR Confirmation Note for Aryan Biswal */}
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-bold text-amber-900 dark:text-amber-200">
+                Confirm Aryan Biswal's timing with HR
+              </p>
+              <p className="text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
+                Historical records in BizCompass showed <strong>7.45 working hours/day</strong> for Aryan Biswal and <strong>7.75 hours/day</strong> for all other staff. Currently, all staff are defaulted to the standard General Studio Shift (7.75 h). Please verify with HR before reassigning or creating a custom shift.
+              </p>
+            </div>
+          </div>
+
+          {/* Active Shift Templates */}
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-brand-600" />
+                  Active Studio Shifts ({shifts.length})
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Official studio working hours and break durations configured in policy.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {shifts.map((s) => (
+                <div
+                  key={s._id}
+                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900 dark:text-white text-xs">{s.name}</span>
+                    {s.isDefault && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                        Default Shift
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-400 pt-1">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Hours:</span>
+                      <span className="font-mono font-medium">{s.startTime} - {s.endTime}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Working Time:</span>
+                      <span className="font-mono font-medium">{s.fullDayHours || (s.workingMinutes / 60).toFixed(2)}h ({s.workingMinutes}m)</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Unpaid Break:</span>
+                      <span className="font-mono font-medium">{s.unpaidBreakMinutes} mins</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Grace Time:</span>
+                      <span className="font-mono font-medium">{s.graceMinutes} mins</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Employee Shift Allocation Table */}
+          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden shadow-sm">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Employee Shift Roster Allocation ({employees.length} Staff)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  View and assign shifts per employee with audit tracking.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-100 dark:border-slate-700">
+                  <tr>
+                    <th className="py-3 px-6">Employee</th>
+                    <th className="py-3 px-4">Department / Designation</th>
+                    <th className="py-3 px-4">Assigned Shift</th>
+                    <th className="py-3 px-4">Working Hours</th>
+                    <th className="py-3 px-6 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                  {employees.map((emp) => {
+                    const defaultShiftName = shifts.find((s) => s.isDefault)?.name || 'General Studio Shift';
+                    const defaultHours = shifts.find((s) => s.isDefault)?.fullDayHours || 7.75;
+                    const isAryan = emp.personal?.firstName?.toLowerCase().includes('aryan');
+
+                    return (
+                      <tr key={emp._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td className="py-3 px-6 font-semibold text-slate-800 dark:text-slate-100">
+                          <div className="flex flex-col">
+                            <span>{emp.personal?.firstName} {emp.personal?.lastName}</span>
+                            <span className="text-[10px] font-mono text-slate-400">{emp.employeeId}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                          <div className="flex flex-col">
+                            <span>{emp.employment?.department?.name || 'Designing'}</span>
+                            <span className="text-[10px] text-slate-400">{emp.employment?.designation || '-'}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                            {defaultShiftName}
+                            <span className="text-[9px] uppercase px-1 rounded bg-slate-200 dark:bg-slate-600 font-bold">Standard</span>
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">
+                          {defaultHours} hrs/day
+                          {isAryan && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200">
+                              BizCompass: 7.45h
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-6 text-right">
+                          <button
+                            onClick={() => {
+                              setAssignForm({
+                                employeeId: emp._id,
+                                shiftId: shifts[0]?._id || '',
+                                startDate: new Date().toISOString().split('T')[0],
+                                type: 'special',
+                                reason: isAryan ? 'Confirm Aryan Biswal shift timing with HR' : 'Assign shift',
+                              });
+                              setAssignShiftModal(true);
+                            }}
+                            className="px-3 py-1.5 rounded-xl border border-brand-200 dark:border-brand-800 hover:bg-brand-50 dark:hover:bg-brand-950/40 text-brand-600 dark:text-brand-400 font-semibold text-[11px] transition-colors"
+                          >
+                            Assign Shift
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Assign Shift */}
+      {assignShiftModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-700">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
+              Assign Shift to Employee
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Assign a custom or special roster shift for an employee with audit tracking.
+            </p>
+
+            <form onSubmit={handleAssignShift} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                  Employee <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={assignForm.employeeId}
+                  onChange={(e) => setAssignForm({ ...assignForm, employeeId: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                >
+                  <option value="">Select Employee</option>
+                  {employees.map((e) => (
+                    <option key={e._id} value={e._id}>
+                      {e.personal?.firstName} {e.personal?.lastName} ({e.employeeId})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                  Target Shift <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={assignForm.shiftId}
+                  onChange={(e) => setAssignForm({ ...assignForm, shiftId: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                >
+                  <option value="">Select Shift</option>
+                  {shifts.map((s) => (
+                    <option key={s._id} value={s._id}>
+                      {s.name} ({s.startTime} - {s.endTime}, {s.fullDayHours || (s.workingMinutes / 60).toFixed(2)}h)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                    Effective Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={assignForm.startDate}
+                    onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                    Assignment Type
+                  </label>
+                  <select
+                    value={assignForm.type}
+                    onChange={(e) => setAssignForm({ ...assignForm, type: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  >
+                    <option value="special">Special / Temporary</option>
+                    <option value="default">Regular Shift</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                  Reason / Notes <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows="2"
+                  value={assignForm.reason}
+                  onChange={(e) => setAssignForm({ ...assignForm, reason: e.target.value })}
+                  placeholder="e.g. Adjusted timings as requested by HR..."
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAssignShiftModal(false)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assignLoading}
+                  className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold disabled:opacity-50"
+                >
+                  {assignLoading ? 'Assigning...' : 'Confirm Assignment'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -10,7 +10,8 @@ import { LeaveBalance } from '../src/models/LeaveBalance.js';
 import { Employee } from '../src/models/Employee.js';
 import { LeavePolicyYear } from '../src/models/LeavePolicyYear.js';
 import { isPunchLate } from '../src/utils/dateUtils.js';
-import { calculateEntitlementMinutes } from '../src/services/settlement.service.js';
+import { calculateEntitlementMinutes, recalculatePolicyYearBalances } from '../src/services/settlement.service.js';
+import { AuditLog } from '../src/models/AuditLog.js';
 
 describe('Real Illusory Policy Audit Test Suite', () => {
   let policyYear2026;
@@ -177,5 +178,122 @@ describe('Real Illusory Policy Audit Test Suite', () => {
     });
 
     expect(plBalancesForConfirmed.length).toBe(0);
+  });
+
+  // TEST 8: Pro-rata for a July 6 Joiner (50% allocation)
+  test('8. Pro-rata entitlement allocates exactly 50% for a July 6 joiner', async () => {
+    const cl = await LeaveType.findOne({ code: 'CL' });
+    const al = await LeaveType.findOne({ code: 'AL' });
+    const sl = await LeaveType.findOne({ code: 'SL' });
+    const bl = await LeaveType.findOne({ code: 'BL' });
+
+    const julyJoiner = {
+      _id: new mongoose.Types.ObjectId(),
+      status: 'active',
+      employment: { dateOfJoining: new Date('2026-07-06T00:00:00.000Z') },
+    };
+
+    // 12 days * 465 = 5580 mins. 50% = 2790 mins (6 days)
+    expect(calculateEntitlementMinutes(cl, julyJoiner, policyYear2026)).toBe(2790);
+    expect(calculateEntitlementMinutes(al, julyJoiner, policyYear2026)).toBe(2790);
+
+    // 6 days * 465 = 2790 mins. 50% = 1395 mins (3 days)
+    expect(calculateEntitlementMinutes(sl, julyJoiner, policyYear2026)).toBe(1395);
+
+    // 5 days * 465 = 2325 mins. 50% = 1162.5 -> rounds to 1163 mins (2.5 days)
+    expect(calculateEntitlementMinutes(bl, julyJoiner, policyYear2026)).toBe(1163);
+  });
+
+  // TEST 9: Full Entitlement for Pre-2026 Joiners (100% allocation)
+  test('9. Full year entitlement is allocated to employees joining before 2026', async () => {
+    const cl = await LeaveType.findOne({ code: 'CL' });
+    const al = await LeaveType.findOne({ code: 'AL' });
+    const sl = await LeaveType.findOne({ code: 'SL' });
+    const bl = await LeaveType.findOne({ code: 'BL' });
+
+    const pre2026Joiner = {
+      _id: new mongoose.Types.ObjectId(),
+      status: 'active',
+      employment: { dateOfJoining: new Date('2025-07-14T00:00:00.000Z') }, // Mihir Dash DOJ
+    };
+
+    expect(calculateEntitlementMinutes(cl, pre2026Joiner, policyYear2026)).toBe(5580); // 12 days
+    expect(calculateEntitlementMinutes(al, pre2026Joiner, policyYear2026)).toBe(5580); // 12 days
+    expect(calculateEntitlementMinutes(sl, pre2026Joiner, policyYear2026)).toBe(2790); // 6 days
+    expect(calculateEntitlementMinutes(bl, pre2026Joiner, policyYear2026)).toBe(2325); // 5 days
+  });
+
+  // TEST 10: Status transition probation -> confirmed cleans up untaken Probation Leave or preserves taken
+  test('10. Status change from probation to confirmed removes untaken Probation Leave and preserves taken history', async () => {
+    const pl = await LeaveType.findOne({ code: 'PL' });
+    const py = await LeavePolicyYear.findOne({ code: 'PY-2026' });
+
+    if (!py || !pl) return;
+
+    // Create a temporary mock employee in probation
+    const testEmp = await Employee.create({
+      employeeId: `TEST-${Date.now()}`,
+      status: 'probation',
+      personal: { firstName: 'Test', lastName: 'Probationer', phone: '9999999999', officialEmail: `test-${Date.now()}@illusory.design` },
+      employment: {
+        dateOfJoining: new Date('2026-08-01T00:00:00.000Z'),
+        designation: 'Tester',
+        department: (await Employee.findOne())?.employment?.department,
+      },
+    });
+
+    try {
+      // 1. Initial balance under probation should include Probation Leave
+      await recalculatePolicyYearBalances(py._id, testEmp._id);
+      let balancePL = await LeaveBalance.findOne({ employee: testEmp._id, leaveType: pl._id, policyYear: py._id });
+      expect(balancePL).toBeDefined();
+      expect(balancePL.entitlementMinutes).toBeGreaterThan(0);
+
+      // 2. Confirm employee
+      testEmp.status = 'active';
+      testEmp.employment.confirmationDate = new Date('2026-11-20T00:00:00.000Z');
+      await testEmp.save();
+
+      // Audit entry verification
+      const audit = await AuditLog.create({
+        user: null,
+        userEmail: 'admin@illusory.design',
+        action: 'SET_EMPLOYMENT_STATUS',
+        entity: 'Employee',
+        entityId: testEmp._id,
+        changes: { previousStatus: 'probation', newStatus: 'active', reason: 'Confirmed after probation period' },
+      });
+      expect(audit._id).toBeDefined();
+
+      // 3. Recalculate: untaken PL should be deleted
+      await recalculatePolicyYearBalances(py._id, testEmp._id);
+      balancePL = await LeaveBalance.findOne({ employee: testEmp._id, leaveType: pl._id, policyYear: py._id });
+      expect(balancePL).toBeNull();
+
+      // 4. Case where taken > 0: should preserve taken history with closing = 0
+      const takenRecord = await LeaveBalance.create({
+        employee: testEmp._id,
+        policyYear: py._id,
+        year: 2026,
+        leaveType: pl._id,
+        entitlementMinutes: 465,
+        takenMinutes: 465,
+        pendingMinutes: 0,
+        closingMinutes: 0,
+        isSettled: false,
+      });
+
+      await recalculatePolicyYearBalances(py._id, testEmp._id);
+      const updatedTaken = await LeaveBalance.findById(takenRecord._id);
+      expect(updatedTaken).toBeDefined();
+      expect(updatedTaken.takenMinutes).toBe(465);
+      expect(updatedTaken.closingMinutes).toBe(0);
+      expect(updatedTaken.isSettled).toBe(true);
+
+      await LeaveBalance.findByIdAndDelete(takenRecord._id);
+    } finally {
+      await Employee.findByIdAndDelete(testEmp._id);
+      await LeaveBalance.deleteMany({ employee: testEmp._id });
+    }
   });
 });

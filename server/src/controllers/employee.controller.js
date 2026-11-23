@@ -1,10 +1,12 @@
 import { Employee } from '../models/Employee.js';
 import { User } from '../models/User.js';
 import { Role } from '../models/Role.js';
+import { LeavePolicyYear } from '../models/LeavePolicyYear.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import { sanitizeEmployee } from '../utils/masking.js';
 import { logAudit } from '../middleware/audit.js';
 import { initiateExitClearance } from '../services/asset.service.js';
+import { recalculatePolicyYearBalances } from '../services/settlement.service.js';
 
 // GET /api/v1/employees - List employees with filters & pagination
 export const listEmployees = async (req, res, next) => {
@@ -309,14 +311,14 @@ export const deleteEmployee = async (req, res, next) => {
   }
 };
 
-// PATCH /api/v1/employees/:id/status - Update employee status
+// PATCH /api/v1/employees/:id/status - Set employment status (probation / confirmed / notice)
 export const updateEmployeeStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, remarks } = req.body;
+    const { status, confirmationDate, reason, remarks } = req.body;
 
-    const validStatuses = ['active', 'probation', 'notice', 'resigned', 'terminated', 'inactive'];
-    if (!validStatuses.includes(status)) {
+    const validStatuses = ['active', 'confirmed', 'probation', 'notice', 'resigned', 'terminated', 'inactive'];
+    if (!status || !validStatuses.includes(status)) {
       return sendError(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
     }
 
@@ -326,19 +328,35 @@ export const updateEmployeeStatus = async (req, res, next) => {
     }
 
     const oldStatus = employee.status;
-    employee.status = status;
+    const targetStatus = status === 'confirmed' ? 'active' : status;
+    employee.status = targetStatus;
+
+    if (!employee.employment) employee.employment = {};
+
+    if (targetStatus === 'active') {
+      const confDate = confirmationDate ? new Date(confirmationDate) : new Date();
+      employee.employment.confirmationDate = confDate;
+      employee.employment.probationEndDate = confDate;
+      employee.employment.employeeType = 'Full-Time';
+    } else if (targetStatus === 'probation') {
+      employee.employment.employeeType = 'Probation';
+      employee.employment.confirmationDate = null;
+    }
+
+    const changeReason = reason || remarks || `Status transitioned from ${oldStatus} to ${targetStatus}`;
+
     employee.history.push({
       date: new Date(),
       type: 'STATUS_CHANGE',
       from: oldStatus,
-      to: status,
-      remarks: remarks || `Status transitioned from ${oldStatus} to ${status}`,
+      to: targetStatus,
+      remarks: changeReason,
     });
 
     await employee.save();
 
     // Trigger exit clearance checklist if transitioning to notice, resigned, or terminated
-    if (['notice', 'resigned', 'terminated'].includes(status)) {
+    if (['notice', 'resigned', 'terminated'].includes(targetStatus)) {
       try {
         await initiateExitClearance(id);
       } catch (clearanceErr) {
@@ -347,7 +365,7 @@ export const updateEmployeeStatus = async (req, res, next) => {
     }
 
     // If resigned or terminated or inactive, deactivate user
-    if (['resigned', 'terminated', 'inactive'].includes(status)) {
+    if (['resigned', 'terminated', 'inactive'].includes(targetStatus)) {
       await User.updateOne({ employee: id }, { isActive: false });
     } else {
       await User.updateOne({ employee: id }, { isActive: true });
@@ -355,13 +373,30 @@ export const updateEmployeeStatus = async (req, res, next) => {
 
     await logAudit({
       req,
-      action: 'CHANGE_EMPLOYEE_STATUS',
+      action: 'SET_EMPLOYMENT_STATUS',
       entity: 'Employee',
       entityId: id,
-      changes: { from: oldStatus, to: status, remarks },
+      changes: {
+        from: oldStatus,
+        to: targetStatus,
+        confirmationDate: employee.employment.confirmationDate,
+        reason: changeReason,
+      },
     });
 
-    return sendSuccess(res, employee, `Employee status changed to ${status}`);
+    // Automatically recalculate 2026 leave balances after status change
+    try {
+      const activePy =
+        (await LeavePolicyYear.findOne({ isCurrent: true })) ||
+        (await LeavePolicyYear.findOne().sort({ startDate: -1 }));
+      if (activePy) {
+        await recalculatePolicyYearBalances(activePy._id, { _id: employee._id });
+      }
+    } catch (recalcErr) {
+      console.warn('Post-status recalculation warning:', recalcErr.message);
+    }
+
+    return sendSuccess(res, employee, `Employee status changed to ${targetStatus}`);
   } catch (error) {
     next(error);
   }

@@ -220,7 +220,14 @@ export const recalculatePolicyYearBalances = async (policyYearId, employeeFilter
   const yearNum = policyYear.startDate.getFullYear();
   const minutesPerDay = policyYear.minutesPerDay || STANDARD_MINUTES_PER_DAY;
 
-  const employees = await Employee.find({ ...employeeFilter, isDeleted: false });
+  let empQuery = { isDeleted: false };
+  if (mongoose.isValidObjectId(employeeFilter) || typeof employeeFilter === 'string') {
+    empQuery._id = employeeFilter;
+  } else if (employeeFilter && typeof employeeFilter === 'object') {
+    empQuery = { ...employeeFilter, isDeleted: false };
+  }
+
+  const employees = await Employee.find(empQuery);
   const leaveTypes = await LeaveType.find({ isActive: true });
 
   const results = [];
@@ -229,11 +236,27 @@ export const recalculatePolicyYearBalances = async (policyYearId, employeeFilter
     for (const lt of leaveTypes) {
       // Probation Leave appears strictly for employees with status 'probation'
       if (['PL', 'PROBATION'].includes(lt.code) && emp.status !== 'probation') {
-        await LeaveBalance.deleteOne({
+        const existingBal = await LeaveBalance.findOne({
           employee: emp._id,
           leaveType: lt._id,
           year: yearNum,
         });
+        if (existingBal && (existingBal.takenMinutes > 0 || existingBal.used > 0)) {
+          // Keep taken history intact, but closing/remaining balance becomes 0
+          existingBal.entitlementMinutes = existingBal.takenMinutes;
+          existingBal.allocated = existingBal.used;
+          existingBal.closingMinutes = 0;
+          existingBal.settlementMinutes = 0;
+          existingBal.carriedForwardMinutes = 0;
+          existingBal.isSettled = true;
+          await existingBal.save();
+        } else {
+          await LeaveBalance.deleteOne({
+            employee: emp._id,
+            leaveType: lt._id,
+            year: yearNum,
+          });
+        }
         continue;
       }
 
