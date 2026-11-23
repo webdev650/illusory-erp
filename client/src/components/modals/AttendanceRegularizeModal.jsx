@@ -9,8 +9,8 @@ export const AttendanceRegularizeModal = ({
   targetDate,
   onSuccess,
 }) => {
-  const [requestedCheckIn, setRequestedCheckIn] = useState('09:30');
-  const [requestedCheckOut, setRequestedCheckOut] = useState('18:30');
+  const [requestedCheckIn, setRequestedCheckIn] = useState('10:00');
+  const [requestedCheckOut, setRequestedCheckOut] = useState('18:45');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);

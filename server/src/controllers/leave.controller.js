@@ -10,7 +10,14 @@ import { logAudit } from '../middleware/audit.js';
 // GET /api/v1/hr/leave/types
 export const getLeaveTypes = async (req, res, next) => {
   try {
-    const types = await LeaveType.find({ isActive: true }).sort({ name: 1 });
+    let types = await LeaveType.find({ isActive: true }).sort({ name: 1 });
+    const employeeId = req.user.employee?._id || req.user.employee;
+    if (employeeId) {
+      const emp = await Employee.findById(employeeId);
+      if (emp && emp.status !== 'probation') {
+        types = types.filter((t) => !['PL', 'PROBATION'].includes(t.code));
+      }
+    }
     return sendSuccess(res, types);
   } catch (err) {
     next(err);
@@ -20,9 +27,11 @@ export const getLeaveTypes = async (req, res, next) => {
 // GET /api/v1/hr/leave/balances
 export const getLeaveBalances = async (req, res, next) => {
   try {
-    const employeeId = req.user.employee?._id;
+    const employeeId = req.user.employee?._id || req.user.employee;
     if (!employeeId) return sendSuccess(res, []);
 
+    const emp = await Employee.findById(employeeId);
+    const isProbation = emp?.status === 'probation';
     const year = parseInt(req.query.year, 10) || new Date().getFullYear();
 
     let balances = await LeaveBalance.find({
@@ -30,9 +39,17 @@ export const getLeaveBalances = async (req, res, next) => {
       year,
     }).populate('leaveType');
 
+    // Filter out Probation Leave if employee is not on probation
+    if (!isProbation) {
+      balances = balances.filter((b) => !['PL', 'PROBATION'].includes(b.leaveType?.code));
+    }
+
     // If balances don't exist yet for this employee/year, auto-initialize
     if (balances.length === 0) {
-      const types = await LeaveType.find({ isActive: true });
+      let types = await LeaveType.find({ isActive: true });
+      if (!isProbation) {
+        types = types.filter((t) => !['PL', 'PROBATION'].includes(t.code));
+      }
       const created = [];
       for (const t of types) {
         const bal = await LeaveBalance.create({

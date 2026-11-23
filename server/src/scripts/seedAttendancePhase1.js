@@ -168,12 +168,22 @@ async function seedPhase1() {
       paid: false,
       allowHalfDay: true,
     },
+    {
+      name: 'Comp-Off',
+      code: 'COMP_OFF',
+      yearlyQuota: 0,
+      yearlyQuotaMinutes: 0,
+      carryForward: false,
+      maxCarry: 0,
+      paid: true,
+      allowHalfDay: true,
+    },
   ];
 
   for (const lt of leaveTypesData) {
     await LeaveType.findOneAndUpdate({ code: lt.code }, lt, { upsert: true, new: true });
   }
-  console.log(`✓ Seeded/updated 6 standardized Leave Types (CL, AL, SL, BL, PL, LWP).`);
+  console.log(`✓ Seeded/updated 7 standardized Leave Types (CL, AL, SL, BL, PL, LWP, COMP_OFF).`);
 
   // 4. November 2026 Odisha Holidays
   const holidaysNov2026 = [

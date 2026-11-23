@@ -1,0 +1,181 @@
+import 'dotenv/config';
+import { describe, test, expect, beforeAll, afterAll } from '@jest/globals';
+import mongoose from 'mongoose';
+
+import { connectDB } from '../src/config/db.js';
+import { Shift } from '../src/models/Shift.js';
+import { AttendancePolicy } from '../src/models/AttendancePolicy.js';
+import { LeaveType } from '../src/models/LeaveType.js';
+import { LeaveBalance } from '../src/models/LeaveBalance.js';
+import { Employee } from '../src/models/Employee.js';
+import { LeavePolicyYear } from '../src/models/LeavePolicyYear.js';
+import { isPunchLate } from '../src/utils/dateUtils.js';
+import { calculateEntitlementMinutes } from '../src/services/settlement.service.js';
+
+describe('Real Illusory Policy Audit Test Suite', () => {
+  let policyYear2026;
+
+  beforeAll(async () => {
+    await connectDB();
+    policyYear2026 = await LeavePolicyYear.findOne({ code: 'PY-2026' }) || {
+      startDate: new Date('2026-01-01T00:00:00.000Z'),
+      endDate: new Date('2026-12-31T23:59:59.999Z'),
+      minutesPerDay: 465,
+      proRataJoiners: true,
+      proRataCalculation: 'months',
+      proRataLeavers: true,
+    };
+  }, 30000);
+
+  afterAll(async () => {
+    // Keep connection alive or let jest close it
+  });
+
+  // TEST 1: Default Shift Audit
+  test('1. Default shift strictly matches 10:00 to 18:45, 60m break, 465 mins, Mon-Sat', async () => {
+    const defaultShift = await Shift.findOne({ isDefault: true });
+    expect(defaultShift).toBeDefined();
+    expect(defaultShift.name).toBe('General Studio Shift');
+    expect(defaultShift.startTime).toBe('10:00');
+    expect(defaultShift.endTime).toBe('18:45');
+    expect(defaultShift.graceMinutes).toBe(15);
+    expect(defaultShift.unpaidBreakMinutes).toBe(60);
+    expect(defaultShift.workingMinutes).toBe(465); // 7.75h = 465m
+    expect(defaultShift.workingDays).toEqual(expect.arrayContaining([1, 2, 3, 4, 5, 6]));
+    expect(defaultShift.workingDays).not.toContain(0); // Sunday is week-off
+  });
+
+  // TEST 2: No Evening or Night Shifts exist
+  test('2. No Evening or Night shifts exist in the database', async () => {
+    const extraShifts = await Shift.find({
+      name: { $regex: /evening|night/i },
+    });
+    expect(extraShifts.length).toBe(0);
+  });
+
+  // TEST 3: AttendancePolicy Audit
+  test('3. AttendancePolicy matches 15m grace, late after 10:15 AM, 240m half-day, 465m full-day', async () => {
+    const policy = await AttendancePolicy.findOne({ isDefault: true });
+    expect(policy).toBeDefined();
+    expect(policy.graceMinutes).toBe(15);
+    expect(policy.lateAfter).toBe(15);
+    expect(policy.halfDayMinMinutes).toBe(240);
+    expect(policy.fullDayMinMinutes).toBe(465);
+    expect(policy.breakMinutes).toBe(60);
+    expect(policy.weekOffDays).toContain(0); // Sunday
+    expect(policy.weekOffDays).not.toContain(6); // Saturday is working
+  });
+
+  // TEST 4: Punch Late Calculation (10:00 start + 15m grace = late after 10:15 AM)
+  test('4. Punch timing logic flags late strictly after 10:15 AM', () => {
+    const onTimePunch = new Date();
+    onTimePunch.setHours(10, 14, 59, 0); // 10:14:59 AM
+
+    const latePunch = new Date();
+    latePunch.setHours(10, 15, 1, 0); // 10:15:01 AM
+
+    expect(isPunchLate(onTimePunch, '10:00', 15)).toBe(false);
+    expect(isPunchLate(latePunch, '10:00', 15)).toBe(true);
+  });
+
+  // TEST 5: Leave Types Quotas & Rules Audit
+  test('5. Leave Types strictly match real policy quotas, carry forward caps, and no Privilege Leave', async () => {
+    // 1. Casual Leave: 12 days, no carry forward
+    const cl = await LeaveType.findOne({ code: 'CL' });
+    expect(cl).toBeDefined();
+    expect(cl.yearlyQuota).toBe(12);
+    expect(cl.yearlyQuotaMinutes).toBe(5580);
+    expect(cl.carryForward).toBe(false);
+    expect(cl.maxCarry).toBe(0);
+
+    // 2. Annual Leave: 12 days, carry forward 100%, max 5 days
+    const al = await LeaveType.findOne({ code: 'AL' });
+    expect(al).toBeDefined();
+    expect(al.yearlyQuota).toBe(12);
+    expect(al.yearlyQuotaMinutes).toBe(5580);
+    expect(al.carryForward).toBe(true);
+    expect(al.maxCarry).toBe(5);
+    expect(al.maxCarryMinutes).toBe(2325); // 5 * 465
+    expect(al.forwardPercent).toBe(100);
+
+    // 3. Sick Leave: 6 days, no carry forward
+    const sl = await LeaveType.findOne({ code: 'SL' });
+    expect(sl).toBeDefined();
+    expect(sl.yearlyQuota).toBe(6);
+    expect(sl.yearlyQuotaMinutes).toBe(2790); // 6 * 465
+    expect(sl.carryForward).toBe(false);
+    expect(sl.maxCarry).toBe(0);
+
+    // 4. Bereavement Leave: 5 days, no carry forward
+    const bl = await LeaveType.findOne({ code: 'BL' });
+    expect(bl).toBeDefined();
+    expect(bl.yearlyQuota).toBe(5);
+    expect(bl.yearlyQuotaMinutes).toBe(2325); // 5 * 465
+    expect(bl.carryForward).toBe(false);
+    expect(bl.maxCarry).toBe(0);
+
+    // 5. Probation Leave: 1 day, no carry forward
+    const pl = await LeaveType.findOne({ code: 'PL' });
+    expect(pl).toBeDefined();
+    expect(pl.yearlyQuota).toBe(1);
+    expect(pl.yearlyQuotaMinutes).toBe(465); // 1 * 465
+    expect(pl.carryForward).toBe(false);
+
+    // 6. Leave Without Pay: 0 quota, unpaid
+    const lwp = await LeaveType.findOne({ code: 'LWP' });
+    expect(lwp).toBeDefined();
+    expect(lwp.yearlyQuota).toBe(0);
+    expect(lwp.paid).toBe(false);
+
+    // 7. Comp-Off: 0 quota, paid
+    const co = await LeaveType.findOne({ code: 'COMP_OFF' });
+    expect(co).toBeDefined();
+    expect(co.yearlyQuota).toBe(0);
+    expect(co.paid).toBe(true);
+
+    // 8. NO "Privilege Leave" exists
+    const privilegeLeave = await LeaveType.findOne({ name: { $regex: /privilege/i } });
+    expect(privilegeLeave).toBeNull();
+
+    // 9. NO "Earned Leave" exists
+    const earnedLeave = await LeaveType.findOne({ code: 'EL' });
+    expect(earnedLeave).toBeNull();
+  });
+
+  // TEST 6: Probation Leave Isolation
+  test('6. Probation Leave calculates 0 for confirmed employee and allocates only for probation employee', async () => {
+    const pl = await LeaveType.findOne({ code: 'PL' });
+
+    const confirmedEmp = {
+      _id: new mongoose.Types.ObjectId(),
+      status: 'active',
+      employment: { dateOfJoining: new Date('2025-01-01') },
+    };
+
+    const probationEmp = {
+      _id: new mongoose.Types.ObjectId(),
+      status: 'probation',
+      employment: { dateOfJoining: new Date('2026-01-01') },
+    };
+
+    const entConfirmed = calculateEntitlementMinutes(pl, confirmedEmp, policyYear2026);
+    expect(entConfirmed).toBe(0);
+
+    const entProbation = calculateEntitlementMinutes(pl, probationEmp, policyYear2026);
+    expect(entProbation).toBe(465); // 1 full day = 465 mins
+  });
+
+  // TEST 7: Confirmed employees in DB do not have Probation Leave balances
+  test('7. Real confirmed employees in DB have zero Probation Leave balance records', async () => {
+    const pl = await LeaveType.findOne({ code: 'PL' });
+    const confirmedEmployees = await Employee.find({ isDeleted: false, status: { $ne: 'probation' } });
+    const confirmedIds = confirmedEmployees.map(e => e._id);
+
+    const plBalancesForConfirmed = await LeaveBalance.find({
+      leaveType: pl._id,
+      employee: { $in: confirmedIds },
+    });
+
+    expect(plBalancesForConfirmed.length).toBe(0);
+  });
+});

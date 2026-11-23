@@ -270,6 +270,10 @@ describe('DAY-STATUS ATTENDANCE ENGINE (Single Source of Truth)', () => {
       expect(resolved.type).toBe('special');
       expect(resolved.shift.name).toBe('Late Studio Shift');
       expect(resolved.shift.startTime).toBe('14:00');
+
+      // Cleanup
+      await ShiftAssignment.deleteMany({ shift: specialShift._id });
+      await Shift.deleteOne({ _id: specialShift._id });
     });
   });
 });

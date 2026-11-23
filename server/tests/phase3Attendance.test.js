@@ -143,6 +143,9 @@ describe('PHASE 3: MANAGE BULK IN/OUT & SHIFT ROSTER TESTS', () => {
       await RosterChangeHistory.deleteMany({ employee: { $in: [testEmp1._id, testEmp2._id] } });
       await BulkAction.deleteMany({ executedBy: superAdminUser?._id });
     }
+    if (lateShift) {
+      await Shift.deleteOne({ _id: lateShift._id });
+    }
   });
 
   // TEST 1: Overnight Shift Rejection

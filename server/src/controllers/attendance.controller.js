@@ -28,7 +28,7 @@ export const checkIn = async (req, res, next) => {
     }
 
     const shift = (await Shift.findOne({ isDefault: true })) || {
-      startTime: '09:30',
+      startTime: '10:00',
       graceMinutes: 15,
     };
 
@@ -215,8 +215,8 @@ export const getTodayStatus = async (req, res, next) => {
     });
 
     const shift = (await Shift.findOne({ isDefault: true })) || {
-      startTime: '09:30',
-      endTime: '18:30',
+      startTime: '10:00',
+      endTime: '18:45',
       graceMinutes: 15,
     };
 

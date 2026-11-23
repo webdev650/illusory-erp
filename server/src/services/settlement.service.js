@@ -227,6 +227,16 @@ export const recalculatePolicyYearBalances = async (policyYearId, employeeFilter
 
   for (const emp of employees) {
     for (const lt of leaveTypes) {
+      // Probation Leave appears strictly for employees with status 'probation'
+      if (['PL', 'PROBATION'].includes(lt.code) && emp.status !== 'probation') {
+        await LeaveBalance.deleteOne({
+          employee: emp._id,
+          leaveType: lt._id,
+          year: yearNum,
+        });
+        continue;
+      }
+
       let balance = await LeaveBalance.findOne({
         employee: emp._id,
         leaveType: lt._id,

@@ -152,7 +152,15 @@ export const getSettlementMatrix = async (req, res, next) => {
       const empIdStr = String(emp._id);
       const empBalances = balances.filter((b) => String(b.employee) === empIdStr);
 
-      const rows = leaveTypes.map((lt) => {
+      const rows = leaveTypes
+        .filter((lt) => {
+          // Probation Leave appears strictly for employees with status 'probation'
+          if (['PL', 'PROBATION'].includes(lt.code) && emp.status !== 'probation') {
+            return false;
+          }
+          return true;
+        })
+        .map((lt) => {
         const bal = empBalances.find((b) => String(b.leaveType?._id || b.leaveType) === String(lt._id));
 
         const openingMinutes = bal?.openingMinutes || 0;

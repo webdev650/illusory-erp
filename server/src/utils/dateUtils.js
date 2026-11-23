@@ -50,7 +50,7 @@ export const countWorkingDays = async (fromDate, toDate, isHalfDay = false) => {
 /**
  * Checks if a punch time is late compared to Shift startTime + graceMinutes
  */
-export const isPunchLate = (punchDate, shiftStartTime = '09:30', graceMinutes = 15) => {
+export const isPunchLate = (punchDate, shiftStartTime = '10:00', graceMinutes = 15) => {
   const punch = new Date(punchDate);
   const [hours, minutes] = shiftStartTime.split(':').map(Number);
 

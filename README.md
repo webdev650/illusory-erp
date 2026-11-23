@@ -259,7 +259,7 @@ A complete, production-grade Attendance & Leave system built for Illusory Design
 | 6 | **Apply Comp-Off Credits** | `/hrms/attendance/comp-off` | All Employees (`leave.apply`) | Requisition comp-off for working on week-off/holiday with automated biometric presence check |
 | 7 | **Manage Logs** | `/hrms/attendance/manage-logs` | HR & Admin (`attendance.manage`) | Studio-wide daily punch editor, manual in/out adjustments, audit log trail |
 | 8 | **Manage Bulk In/Out** | `/hrms/attendance/bulk-punch` | HR & Admin (`attendance.manage`) | Batch check-in/out across departments with preview and 1-click atomic undo |
-| 9 | **Shift Roster** | `/hrms/attendance/roster` | HR & Admin (`attendance.manage`) / Managers | Monthly shift scheduling (General 9:30-18:00, Evening, Night), bulk rotation & swap |
+| 9 | **Shift Roster** | `/hrms/attendance/roster` | HR & Admin (`attendance.manage`) / Managers | Monthly shift scheduling (General Studio Shift 10:00-18:45), shift assignment & swap |
 | 10 | **Leave Balance Settlement** | `/hrms/attendance/settlement` | HR & Admin (`leave.settle`) | Annual year-end policy closing, carry forward / lapse / encash math, lock enforcement |
 | + | **Attendance Reports** | `/hrms/attendance/reports` | HR & Admin (`reports.view`) / Managers (Team) | 10 executive registers (Late arrivals, Monthly Register, Overtime, Absentee, etc.) |
 

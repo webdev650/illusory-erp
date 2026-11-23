@@ -134,7 +134,7 @@ export const AttendanceWidget = ({ onStatusChange }) => {
   };
 
   const record = data?.record;
-  const shift = data?.shift || { startTime: '09:30', endTime: '18:30' };
+  const shift = data?.shift || { startTime: '10:00', endTime: '18:45' };
   const isClockedIn = Boolean(record?.checkIn);
   const isClockedOut = Boolean(record?.checkOut);
 
