@@ -8,7 +8,8 @@ import { Home } from './pages/Home';
 import { HRMS } from './pages/HRMS';
 import { HRMSDashboard } from './pages/HRMSDashboard';
 import { Warnings } from './pages/Warnings';
-import { Letters } from './pages/Letters';
+import { LettersAndDocuments } from './pages/LettersAndDocuments';
+import { VerifyDocument } from './pages/VerifyDocument';
 import { ModuleComingSoon } from './pages/ModuleComingSoon';
 import { EmployeeDetail } from './pages/EmployeeDetail';
 import { HRDashboard } from './pages/HRDashboard';
@@ -42,6 +43,7 @@ export const App = () => {
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
+      <Route path="/verify/:token" element={<VerifyDocument />} />
 
       {/* Protected password setup route */}
       <Route
@@ -216,8 +218,8 @@ export const App = () => {
         <Route
           path="hrms/letters"
           element={
-            <ProtectedRoute requiredPermission="document.manage">
-              <Letters />
+            <ProtectedRoute requiredPermission={['document.manage', 'letter.view', 'letter.generate']}>
+              <LettersAndDocuments />
             </ProtectedRoute>
           }
         />

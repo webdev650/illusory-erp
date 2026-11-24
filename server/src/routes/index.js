@@ -17,8 +17,13 @@ import assetRoutes from './asset.routes.js';
 import preferenceRoutes from './preference.routes.js';
 import hrmsDashboardRoutes from './hrmsDashboard.routes.js';
 import attendanceRoutes from './attendance.routes.js';
+import letterRoutes from './letter.routes.js';
+import { verifyPublicLetter } from '../controllers/letter.controller.js';
 
 const router = Router();
+
+// Public verification endpoint alias
+router.get('/verify/:token', verifyPublicLetter);
 
 // Liveness & readiness probes
 router.use('/', healthRoutes);
@@ -35,6 +40,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/approvals', approvalRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/attendance', attendanceRoutes);
+router.use('/letters', letterRoutes);
 router.use('/hr', hrRoutes);
 router.use('/clients', clientRoutes);
 router.use('/projects', projectRoutes);

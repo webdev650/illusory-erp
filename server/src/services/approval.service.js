@@ -154,16 +154,18 @@ export const createApprovalRequest = async ({
   referenceModel,
   referenceId,
   requestedByEmployeeId,
+  requestedBy,
   requesterUserId,
   title,
   metadata = {},
   isDemo = false,
 }) => {
-  const requester = await Employee.findById(requestedByEmployeeId);
+  const empId = requestedByEmployeeId || requestedBy;
+  const requester = await Employee.findById(empId);
   const requesterUser = requesterUserId ? await User.findById(requesterUserId) : null;
 
   const { autoApprove, steps } = await resolveApproverSteps(
-    requestedByEmployeeId,
+    empId,
     requesterUserId,
     type
   );
@@ -174,7 +176,7 @@ export const createApprovalRequest = async ({
       order: 1,
       title: 'Super Admin Direct Approval',
       approverRole: 'super_admin',
-      approverEmployee: requestedByEmployeeId,
+      approverEmployee: empId,
       status: 'approved',
       actedBy: requesterUserId,
       actedAt: new Date(),
@@ -185,7 +187,7 @@ export const createApprovalRequest = async ({
       type,
       referenceModel,
       referenceId,
-      requestedBy: requestedByEmployeeId,
+      requestedBy: empId,
       title,
       metadata: { ...metadata, autoApproved: true, approverNote: 'Sole executive Super Admin' },
       steps: [autoStep],
@@ -235,7 +237,7 @@ export const createApprovalRequest = async ({
     type,
     referenceModel,
     referenceId,
-    requestedBy: requestedByEmployeeId,
+    requestedBy: empId,
     title,
     metadata,
     steps,

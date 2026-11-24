@@ -352,3 +352,48 @@ approvalRegistry.register('profile_change', {
   },
   onCancelled: async (approval, user) => {},
 });
+
+// 9. LETTER ISSUANCE APPROVAL
+approvalRegistry.register('letter', {
+  label: 'Official Letter Issuance',
+  icon: 'FileText',
+  colour: 'indigo',
+  module: 'Letters & Documentation',
+  permission: 'letter.approve',
+  defaultSlaHours: 48,
+  referenceModel: 'IssuedLetter',
+  renderSummary: (req) => {
+    const meta = req.metadata || {};
+    return `${meta.categoryLabel || 'Official Document'}: ${req.title} (Ref: ${meta.refNo || 'Pending'})`;
+  },
+  fetchDetails: async (referenceId) => {
+    const letter = await mongoose.model('IssuedLetter').findById(referenceId)
+      .populate('employee', 'personal.firstName personal.lastName employeeId')
+      .populate('template', 'name category');
+    return {
+      type: 'letter',
+      letter,
+      renderedPreview: letter?.renderedBody,
+      refNo: letter?.refNo,
+    };
+  },
+  onApproved: async (approval, user) => {
+    const letter = await mongoose.model('IssuedLetter').findById(approval.referenceId);
+    if (letter) {
+      letter.status = 'issued';
+      letter.issuedAt = new Date();
+      letter.issuedBy = user?._id || user?.id || null;
+      await letter.save();
+      return letter;
+    }
+  },
+  onRejected: async (approval, user) => {
+    const letter = await mongoose.model('IssuedLetter').findById(approval.referenceId);
+    if (letter) {
+      letter.status = 'revoked';
+      letter.revocationReason = 'Rejected in approval workflow';
+      await letter.save();
+    }
+  },
+  onCancelled: async (approval, user) => {},
+});

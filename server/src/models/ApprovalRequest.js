@@ -48,6 +48,7 @@ const approvalRequestSchema = new mongoose.Schema(
         'remote_work',
         'partial_day',
         'comp_off',
+        'letter',
         'other',
       ],
       index: true,
