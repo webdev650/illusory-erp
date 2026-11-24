@@ -334,15 +334,29 @@ export const EmployeeDetail = () => {
         </div>
       </div>
 
-      {/* Tabs navigation */}
+      {/* Tabs navigation: 13 Comprehensive Master Tabs */}
       <div className="flex border-b border-slate-200 dark:border-slate-700 space-x-6 text-xs font-semibold overflow-x-auto">
-        {['overview', 'employment', 'history', 'statutory & bank', 'documents', 'assets & clearance'].map((tab) => (
+        {[
+          'overview',
+          'personal',
+          'employment',
+          'history',
+          'education',
+          'experience',
+          'documents',
+          'statutory & bank',
+          'compensation',
+          'assets & access',
+          'leave & attendance',
+          'performance',
+          ...( ['notice', 'resigned', 'terminated'].includes(employee.status) ? ['exit'] : [] ),
+        ].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-3 capitalize transition-all border-b-2 ${
+            className={`pb-3 capitalize transition-all border-b-2 shrink-0 ${
               activeTab === tab
-                ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+                ? 'border-brand-600 text-brand-600 dark:text-brand-400 font-bold'
                 : 'border-transparent text-slate-400 hover:text-slate-700'
             }`}
           >
@@ -485,7 +499,7 @@ export const EmployeeDetail = () => {
         </div>
       )}
 
-      {/* Tab 4: Statutory & Bank */}
+      {/* Tab: Statutory & Bank */}
       {activeTab === 'statutory & bank' && (
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
@@ -499,12 +513,38 @@ export const EmployeeDetail = () => {
                 <p className="text-sm font-mono font-bold text-slate-900 dark:text-white mt-1">
                   {employee.statutory?.aadhaar || 'Masked / Protected'}
                 </p>
+                {hasPermission('employee.revealSensitive') && (
+                  <button
+                    onClick={async () => {
+                      const reason = prompt('Mandatory justification reason to unmask Aadhaar:');
+                      if (!reason) return;
+                      const res = await api.post(`/employees/${id}/reveal`, { field: 'aadhaar', reason });
+                      if (res.success) alert(`Unmasked Aadhaar: ${res.data.value}`);
+                    }}
+                    className="mt-2 text-[10px] text-brand-600 hover:underline font-semibold"
+                  >
+                    Reveal Aadhaar
+                  </button>
+                )}
               </div>
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                 <span className="text-slate-400 text-[10px] uppercase font-bold">PAN</span>
                 <p className="text-sm font-mono font-bold text-slate-900 dark:text-white mt-1">
                   {employee.statutory?.pan || 'Masked / Protected'}
                 </p>
+                {hasPermission('employee.revealSensitive') && (
+                  <button
+                    onClick={async () => {
+                      const reason = prompt('Mandatory justification reason to unmask PAN:');
+                      if (!reason) return;
+                      const res = await api.post(`/employees/${id}/reveal`, { field: 'pan', reason });
+                      if (res.success) alert(`Unmasked PAN: ${res.data.value}`);
+                    }}
+                    className="mt-2 text-[10px] text-brand-600 hover:underline font-semibold"
+                  >
+                    Reveal PAN
+                  </button>
+                )}
               </div>
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                 <span className="text-slate-400 text-[10px] uppercase font-bold">UAN</span>
@@ -524,9 +564,9 @@ export const EmployeeDetail = () => {
           <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-indigo-600" />
-              Bank & Salary Details
+              Bank Account Details
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                 <span className="text-slate-400 text-[10px] uppercase font-bold">Bank Name</span>
                 <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{employee.bank?.bankName || 'N/A'}</p>
@@ -539,12 +579,103 @@ export const EmployeeDetail = () => {
                 <span className="text-slate-400 text-[10px] uppercase font-bold">IFSC Code</span>
                 <p className="text-sm font-mono font-bold text-slate-900 dark:text-white mt-1">{employee.bank?.ifsc || 'N/A'}</p>
               </div>
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 text-[10px] uppercase font-bold">Annual CTC</span>
-                <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">
-                  {employee.salary?.ctc ? `₹ ${(employee.salary.ctc).toLocaleString('en-IN')}` : 'Restricted (No Permission)'}
-                </p>
-              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Compensation */}
+      {activeTab === 'compensation' && (
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Compensation & Salary Revisions</h3>
+          <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
+            <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300">
+              Managed in Payroll Module
+            </span>
+            <p className="text-xs text-slate-500 mt-3 max-w-md mx-auto">
+              CTC breakdown, basic allowances, deductions, and salary revision history are maintained in the Payroll Master.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Personal */}
+      {activeTab === 'personal' && (
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Personal & Family Details</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-400 text-[10px] uppercase font-bold">Marital Status</span>
+              <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{p.maritalStatus || 'Single'}</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-400 text-[10px] uppercase font-bold">Nationality</span>
+              <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">Indian</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-400 text-[10px] uppercase font-bold">Languages</span>
+              <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">English, Hindi, Odia</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Education */}
+      {activeTab === 'education' && (
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Education Qualifications</h3>
+          {(employee.education || []).length === 0 ? (
+            <p className="text-xs text-slate-400 py-6 text-center">No academic credentials uploaded yet.</p>
+          ) : (
+            <div className="space-y-3 text-xs">
+              {employee.education.map((edu, idx) => (
+                <div key={idx} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                  <strong className="text-white text-sm">{edu.course || edu.degree}</strong>
+                  <p className="text-slate-400">{edu.institution} ({edu.year})</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Experience */}
+      {activeTab === 'experience' && (
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Past Work Experience & Skills</h3>
+          {(employee.experience || []).length === 0 ? (
+            <p className="text-xs text-slate-400 py-6 text-center">No prior employer history recorded.</p>
+          ) : (
+            <div className="space-y-3 text-xs">
+              {employee.experience.map((exp, idx) => (
+                <div key={idx} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                  <strong className="text-white text-sm">{exp.designation}</strong>
+                  <p className="text-slate-400">{exp.company}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Exit */}
+      {activeTab === 'exit' && (
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Exit Clearance & F&F Settlement</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-400 text-[10px] uppercase font-bold">Exit Type</span>
+              <p className="text-sm font-bold text-rose-500 mt-1">{employee.exit?.type || 'Resignation'}</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-400 text-[10px] uppercase font-bold">Last Working Day</span>
+              <p className="text-sm font-bold text-white mt-1">
+                {employee.exit?.lastWorkingDay ? new Date(employee.exit.lastWorkingDay).toLocaleDateString() : 'N/A'}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-400 text-[10px] uppercase font-bold">F&F Settlement Status</span>
+              <p className="text-sm font-bold text-amber-500 mt-1">{employee.exit?.fnfStatus || 'Pending'}</p>
             </div>
           </div>
         </div>

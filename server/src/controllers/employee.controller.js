@@ -7,6 +7,9 @@ import { sanitizeEmployee } from '../utils/masking.js';
 import { logAudit } from '../middleware/audit.js';
 import { initiateExitClearance } from '../services/asset.service.js';
 import { recalculatePolicyYearBalances } from '../services/settlement.service.js';
+import { executeLifecycleAction } from '../services/employeeLifecycle.service.js';
+import { getOrgChartTree, auditEmployeeDataQuality } from '../services/employeeAudit.service.js';
+import { calculateProfileCompleteness } from '../utils/completeness.js';
 
 // GET /api/v1/employees - List employees with filters & pagination
 export const listEmployees = async (req, res, next) => {
@@ -48,10 +51,13 @@ export const listEmployees = async (req, res, next) => {
         .limit(limitNum),
     ]);
 
-    // Sanitize employee list (mask sensitive fields)
-    const employees = rawEmployees.map((emp) =>
-      sanitizeEmployee(emp, req.permissions, false)
-    );
+    // Sanitize employee list (mask sensitive fields) and attach completeness %
+    const employees = rawEmployees.map((emp) => {
+      const sanitized = sanitizeEmployee(emp, req.permissions, false);
+      const completeness = calculateProfileCompleteness(emp);
+      sanitized.completeness = completeness;
+      return sanitized;
+    });
 
     return sendSuccess(
       res,
@@ -536,6 +542,173 @@ export const updateReportingManager = async (req, res, next) => {
     return sendSuccess(res, sanitized, 'Reporting manager updated successfully');
   } catch (error) {
     next(error);
+  }
+};
+
+// GET /api/v1/employees/summary - Quick statistics for status chips
+export const getEmployeeSummary = async (req, res, next) => {
+  try {
+    const [total, active, probation, notice, exited] = await Promise.all([
+      Employee.countDocuments({ isDeleted: false }),
+      Employee.countDocuments({ isDeleted: false, status: 'active' }),
+      Employee.countDocuments({ isDeleted: false, status: 'probation' }),
+      Employee.countDocuments({ isDeleted: false, status: 'notice' }),
+      Employee.countDocuments({ isDeleted: false, status: { $in: ['resigned', 'terminated', 'inactive'] } }),
+    ]);
+
+    return sendSuccess(res, { total, active, probation, notice, exited }, 'Employee summary retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/v1/employees/:id/lifecycle/:action - Execute lifecycle action
+export const triggerLifecycleAction = async (req, res, next) => {
+  try {
+    const { id, action } = req.params;
+    const { payload = {}, reason = '', effectiveDate = null } = req.body;
+
+    const result = await executeLifecycleAction({
+      employeeId: id,
+      action,
+      payload,
+      performedByUserId: req.user._id,
+      reason,
+      effectiveDate,
+    });
+
+    await logAudit({
+      req,
+      action: `LIFECYCLE_${action.toUpperCase()}`,
+      entity: 'Employee',
+      entityId: id,
+      changes: { action, reason, isScheduled: result.isScheduled },
+    });
+
+    return sendSuccess(res, result, `Lifecycle action ${action} executed successfully`);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/v1/employees/:id/reveal - Reveal masked sensitive statutory/bank field
+export const revealSensitiveField = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { field, reason } = req.body;
+
+    if (!reason || !reason.trim()) {
+      return sendError(res, 'A justification reason is mandatory to reveal sensitive data', 400);
+    }
+
+    const employee = await Employee.findById(id);
+    if (!employee) return sendError(res, 'Employee not found', 404);
+
+    let revealedValue = '';
+    if (field === 'aadhaar') revealedValue = employee.statutory?.aadhaar;
+    else if (field === 'pan') revealedValue = employee.statutory?.pan;
+    else if (field === 'uan') revealedValue = employee.statutory?.uan;
+    else if (field === 'accountNumber') revealedValue = employee.bank?.accountNumber;
+    else return sendError(res, 'Invalid sensitive field requested', 400);
+
+    await logAudit({
+      req,
+      action: 'REVEAL_SENSITIVE_DATA',
+      entity: 'Employee',
+      entityId: id,
+      changes: { field, reason },
+    });
+
+    return sendSuccess(res, { field, value: revealedValue }, 'Sensitive field revealed');
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /api/v1/employees/orgchart - Get hierarchy tree
+export const getOrgChart = async (req, res, next) => {
+  try {
+    const data = await getOrgChartTree();
+    return sendSuccess(res, data, 'Organization chart hierarchy retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /api/v1/employees/data-quality - Audit missing data & duplicates
+export const getDataQualityAudit = async (req, res, next) => {
+  try {
+    const audit = await auditEmployeeDataQuality();
+    return sendSuccess(res, audit, 'Data quality audit completed');
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/v1/employees/me/profile-change - Self-service profile change request
+export const submitProfileChangeRequest = async (req, res, next) => {
+  try {
+    const { updates = {}, reason = '' } = req.body;
+    const empId = req.user.employee?._id;
+    if (!empId) return sendError(res, 'No linked employee profile found', 400);
+
+    const approval = await mongoose.model('ApprovalRequest').create({
+      type: 'profile_change',
+      referenceModel: 'Employee',
+      referenceId: empId,
+      requestedBy: empId,
+      title: `Profile Update Request: ${Object.keys(updates).join(', ')}`,
+      metadata: { updates, reason },
+      steps: [
+        { order: 1, approverRole: 'hr', title: 'HR Administration Review', status: 'pending' },
+      ],
+      currentStep: 1,
+      status: 'pending',
+    });
+
+    return sendSuccess(res, approval, 'Profile change request submitted for HR approval');
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/v1/employees/bulk-action - Bulk change department, manager, or status
+export const bulkEmployeeAction = async (req, res, next) => {
+  try {
+    const { action, ids = [], payload = {}, reason = '' } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return sendError(res, 'At least one employee must be selected', 400);
+    }
+
+    let updatedCount = 0;
+    for (const empId of ids) {
+      const emp = await Employee.findById(empId);
+      if (!emp) continue;
+
+      if (action === 'department' && payload.departmentId) {
+        emp.employment.department = payload.departmentId;
+        emp.history.push({ date: new Date(), type: 'BULK_DEPT_CHANGE', remarks: reason });
+      } else if (action === 'manager' && payload.managerId) {
+        emp.employment.reportingManager = payload.managerId;
+        emp.history.push({ date: new Date(), type: 'BULK_MGR_CHANGE', remarks: reason });
+      } else if (action === 'status' && payload.status) {
+        emp.status = payload.status;
+        emp.history.push({ date: new Date(), type: 'BULK_STATUS_CHANGE', to: payload.status, remarks: reason });
+      }
+      await emp.save();
+      updatedCount++;
+    }
+
+    await logAudit({
+      req,
+      action: `BULK_EMPLOYEE_${(action || '').toUpperCase()}`,
+      entity: 'Employee',
+      changes: { action, count: updatedCount, reason },
+    });
+
+    return sendSuccess(res, { updatedCount }, `Bulk ${action} updated for ${updatedCount} employees`);
+  } catch (err) {
+    next(err);
   }
 };
 

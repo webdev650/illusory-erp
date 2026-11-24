@@ -35,8 +35,7 @@ const historySchema = new mongoose.Schema(
     date: { type: Date, default: Date.now },
     type: {
       type: String,
-      enum: ['PROMOTION', 'TRANSFER', 'ROLE_CHANGE', 'SALARY_REVISION', 'STATUS_CHANGE', 'OTHER'],
-      default: 'ROLE_CHANGE',
+      default: 'OTHER',
     },
     from: { type: String, default: '' },
     to: { type: String, default: '' },
@@ -181,6 +180,19 @@ const employeeSchema = new mongoose.Schema(
         enum: ['On-site', 'Remote', 'Hybrid'],
         default: 'On-site',
       },
+      // Biometric & Shift
+      shift: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Shift',
+        default: null,
+      },
+      biometricId: { type: String, default: '', trim: true },
+      sourceOfHire: { type: String, default: 'Direct' },
+      referredBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Employee',
+        default: null,
+      },
       probationEndDate: { type: Date, default: null },
       confirmationDate: { type: Date, default: null },
       isConfirmationDateVerified: { type: Boolean, default: false },
@@ -225,6 +237,18 @@ const employeeSchema = new mongoose.Schema(
       hra: { type: Number, default: 0 },
       allowances: { type: Number, default: 0 },
     },
+
+    // Scheduled / Effective-dated transitions
+    scheduledChanges: [
+      {
+        actionType: { type: String, required: true }, // 'promotion', 'transfer', 'manager_change', 'salary_revision'
+        effectiveDate: { type: Date, required: true },
+        payload: { type: mongoose.Schema.Types.Mixed, default: {} },
+        reason: { type: String, default: '' },
+        status: { type: String, enum: ['pending', 'applied', 'cancelled'], default: 'pending' },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
 
     documents: [documentSchema],
 

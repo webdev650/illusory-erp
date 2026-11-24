@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { PageHeader, Button } from '../components/ui';
+import { OrgChartTree } from '../components/OrgChartTree';
 import {
   Users,
   Search,
@@ -24,6 +25,10 @@ import {
   FileSpreadsheet,
   LayoutGrid,
   List,
+  GitMerge,
+  Download,
+  ShieldCheck,
+  Check,
 } from 'lucide-react';
 
 export const HRMS = () => {
@@ -38,6 +43,11 @@ export const HRMS = () => {
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [summaryCounts, setSummaryCounts] = useState({ total: 0, active: 0, probation: 0, notice: 0, exited: 0 });
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
+  const [bulkModal, setBulkModal] = useState({ open: false, action: null });
+  const [bulkReason, setBulkReason] = useState('');
+  const [bulkTargetValue, setBulkTargetValue] = useState('');
 
   // Add Employee Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -124,8 +134,18 @@ export const HRMS = () => {
     }
   };
 
+  const fetchSummary = async () => {
+    try {
+      const res = await api.get('/employees/summary');
+      if (res.success) setSummaryCounts(res.data);
+    } catch (err) {
+      console.warn('Failed to load summary counts:', err);
+    }
+  };
+
   useEffect(() => {
     fetchDepartments();
+    fetchSummary();
   }, []);
 
   useEffect(() => {
@@ -233,6 +253,35 @@ export const HRMS = () => {
         }
       />
 
+      {/* Summary Filter Chips */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {[
+          { label: 'All Employees', value: '', count: summaryCounts.total, color: 'slate' },
+          { label: 'Active', value: 'active', count: summaryCounts.active, color: 'emerald' },
+          { label: 'Under Probation', value: 'probation', count: summaryCounts.probation, color: 'amber' },
+          { label: 'Serving Notice', value: 'notice', count: summaryCounts.notice, color: 'orange' },
+          { label: 'Exited / Inactive', value: 'inactive', count: summaryCounts.exited, color: 'rose' },
+        ].map((chip) => {
+          const isActive = selectedStatus === chip.value;
+          return (
+            <button
+              key={chip.label}
+              onClick={() => setSelectedStatus(chip.value)}
+              className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 font-medium transition-all ${
+                isActive
+                  ? 'bg-violet-950/40 text-violet-300 border-violet-700 ring-1 ring-violet-500'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              <span>{chip.label}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-slate-900 font-mono font-bold">
+                {chip.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
@@ -274,7 +323,7 @@ export const HRMS = () => {
             <option value="inactive">Inactive</option>
           </select>
 
-          {/* Card / Table View Toggle */}
+          {/* Card / Table / Org Chart View Toggle */}
           <div className="flex bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
             <button
               onClick={() => setViewMode('table')}
@@ -298,12 +347,25 @@ export const HRMS = () => {
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => setViewMode('orgchart')}
+              className={`p-1.5 rounded-lg transition-colors ${
+                viewMode === 'orgchart'
+                  ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              title="Organization Chart Tree"
+            >
+              <GitMerge className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Employee Cards or Table */}
-      {viewMode === 'cards' ? (
+      {/* View Mode Switching: OrgChart vs Cards vs Table */}
+      {viewMode === 'orgchart' ? (
+        <OrgChartTree />
+      ) : viewMode === 'cards' ? (
         <div>
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center">

@@ -303,3 +303,52 @@ approvalRegistry.register('asset_request', {
   onRejected: async (approval, user) => handleWorkflowCompletion(approval, 'rejected', user),
   onCancelled: async (approval, user) => handleWorkflowCompletion(approval, 'cancelled', user),
 });
+
+// 8. PROFILE CHANGE REQUEST (Self-Service)
+approvalRegistry.register('profile_change', {
+  label: 'Profile Modification Request',
+  icon: 'UserCheck',
+  colour: 'emerald',
+  module: 'Core HR',
+  permission: 'profile.approveChange',
+  defaultSlaHours: 48,
+  referenceModel: 'Employee',
+  renderSummary: (req) => {
+    const meta = req.metadata || {};
+    return `Profile Update: ${meta.fieldName || 'Official Details'} modification`;
+  },
+  fetchDetails: async (referenceId) => {
+    const emp = await Employee.findById(referenceId);
+    return {
+      type: 'profile_change',
+      employee: emp,
+    };
+  },
+  onApproved: async (approval, user) => {
+    // Apply requested changes to the employee document
+    const emp = await Employee.findById(approval.referenceId);
+    if (!emp) return;
+    const updates = approval.metadata?.updates || {};
+    Object.keys(updates).forEach((k) => {
+      const parts = k.split('.');
+      if (parts.length === 2) {
+        if (!emp[parts[0]]) emp[parts[0]] = {};
+        emp[parts[0]][parts[1]] = updates[k];
+      } else {
+        emp[k] = updates[k];
+      }
+    });
+    emp.history.push({
+      date: new Date(),
+      type: 'PROFILE_CHANGE_APPROVED',
+      from: 'Self-Service Request',
+      to: 'Approved by HR',
+      remarks: approval.title,
+    });
+    await emp.save();
+  },
+  onRejected: async (approval, user) => {
+    // Notification handled by core engine
+  },
+  onCancelled: async (approval, user) => {},
+});
