@@ -25,9 +25,17 @@ const delegationSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    types: {
+      type: [String],
+      default: ['all'], // 'all' or specific types: ['leave', 'timesheet', etc.]
+    },
     isActive: {
       type: Boolean,
       default: true,
+    },
+    isDemo: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }

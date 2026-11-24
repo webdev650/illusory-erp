@@ -82,10 +82,56 @@ const approvalRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'approved', 'rejected', 'cancelled'],
+      enum: ['pending', 'approved', 'rejected', 'cancelled', 'returned'],
       default: 'pending',
       index: true,
     },
+    version: {
+      type: Number,
+      default: 1,
+    },
+    slaHours: {
+      type: Number,
+      default: 48,
+    },
+    dueDate: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    urgency: {
+      type: String,
+      enum: ['on_time', 'due_soon', 'overdue'],
+      default: 'on_time',
+      index: true,
+    },
+    returnComment: {
+      type: String,
+      default: '',
+    },
+    returnedAt: {
+      type: Date,
+      default: null,
+    },
+    comments: [
+      {
+        author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        authorName: { type: String, default: '' },
+        text: { type: String, required: true },
+        isInternal: { type: Boolean, default: false }, // approvers-only vs visible to requester
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    timeline: [
+      {
+        action: { type: String, required: true }, // CREATED, APPROVED_STEP, REJECTED, RETURNED, REASSIGNED, DELEGATED, ESCALATED, COMMENTED
+        performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        performedByName: { type: String, default: '' },
+        comment: { type: String, default: '' },
+        metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+        timestamp: { type: Date, default: Date.now },
+      },
+    ],
     isDemo: {
       type: Boolean,
       default: false,
@@ -95,8 +141,10 @@ const approvalRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-approvalRequestSchema.index({ status: 1, 'steps.approverEmployee': 1 });
-approvalRequestSchema.index({ status: 1, 'steps.approverRole': 1 });
+approvalRequestSchema.index({ status: 1, 'steps.approverEmployee': 1, createdAt: -1 });
+approvalRequestSchema.index({ status: 1, 'steps.approverRole': 1, createdAt: -1 });
+approvalRequestSchema.index({ requestedBy: 1, status: 1, createdAt: -1 });
+approvalRequestSchema.index({ type: 1, status: 1, createdAt: -1 });
 
 export const ApprovalRequest = mongoose.model('ApprovalRequest', approvalRequestSchema);
 export default ApprovalRequest;
