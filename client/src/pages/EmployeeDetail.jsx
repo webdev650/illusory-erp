@@ -318,7 +318,14 @@ export const EmployeeDetail = () => {
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="px-4 py-2 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Status</span>
-            <p className="text-xs font-bold text-emerald-600 uppercase mt-0.5">{employee.status}</p>
+            <div className="flex items-center justify-center gap-1.5 mt-0.5">
+              <p className="text-xs font-bold text-emerald-600 uppercase">{employee.status}</p>
+              {!emp.isStatusVerified && (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800" title="Inferred / Unverified by HR">
+                  ⚠️ Unverified
+                </span>
+              )}
+            </div>
           </div>
           <div className="px-4 py-2 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Work Mode</span>
@@ -411,6 +418,19 @@ export const EmployeeDetail = () => {
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
               <span className="text-slate-400 text-[10px] uppercase font-bold">Joining Date</span>
               <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{emp.dateOfJoining ? new Date(emp.dateOfJoining).toLocaleDateString() : 'N/A'}</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 text-[10px] uppercase font-bold">Confirmation Date</span>
+                {emp.confirmationDate && !emp.isConfirmationDateVerified && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                    ⚠️ Unverified
+                  </span>
+                )}
+              </div>
+              <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">
+                {emp.confirmationDate ? new Date(emp.confirmationDate).toLocaleDateString() : (employee.status === 'probation' ? 'Under Probation' : 'Not Set')}
+              </p>
             </div>
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
               <span className="text-slate-400 text-[10px] uppercase font-bold">Notice Period</span>

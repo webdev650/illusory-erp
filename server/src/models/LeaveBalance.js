@@ -92,6 +92,11 @@ const leaveBalanceSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    isOpeningImported: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     // Legacy day counters (maintained for backward compatibility)
     allocated: {
       type: Number,

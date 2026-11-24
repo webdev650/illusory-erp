@@ -14,6 +14,7 @@ import {
   exportLeaveLedger,
   getPolicyComparison,
   updatePolicyYearSettings,
+  getCutoverReadiness,
 } from '../controllers/settlement.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
@@ -39,5 +40,6 @@ router.get('/export/ledger', requirePermission('leave.settle'), exportLeaveLedge
 // Policy Comparison & Policy Year Settings (HR and Super Admin)
 router.get('/policy-comparison', requirePermission('leave.settle'), getPolicyComparison);
 router.put('/years/:id/settings', requirePermission('leave.settle'), updatePolicyYearSettings);
+router.get('/cutover-readiness', requirePermission('leave.settle'), getCutoverReadiness);
 
 export default router;

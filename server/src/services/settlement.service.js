@@ -347,10 +347,15 @@ export const recalculatePolicyYearBalances = async (policyYearId, employeeFilter
         });
       }
 
-      // Compute Entitlement
-      const entitlementMinutes = calculateEntitlementMinutes(lt, emp, policyYear);
-      balance.entitlementMinutes = entitlementMinutes;
-      balance.allocated = parseFloat((entitlementMinutes / minutesPerDay).toFixed(2));
+      // Compute Entitlement (if opening balance was imported from cutover, it is the cutover entitlement source of truth)
+      if (balance.isOpeningImported && balance.openingMinutes > 0) {
+        balance.entitlementMinutes = balance.openingMinutes;
+        balance.allocated = parseFloat((balance.openingMinutes / minutesPerDay).toFixed(2));
+      } else {
+        const entitlementMinutes = calculateEntitlementMinutes(lt, emp, policyYear);
+        balance.entitlementMinutes = entitlementMinutes;
+        balance.allocated = parseFloat((entitlementMinutes / minutesPerDay).toFixed(2));
+      }
 
       // Sum actual taken approved leave in policy year
       const takenRequests = await LeaveRequest.find({

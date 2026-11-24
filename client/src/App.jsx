@@ -34,6 +34,7 @@ import ApplyCompOff from './pages/attendance/ApplyCompOff';
 import ManageBulkPunch from './pages/attendance/ManageBulkPunch';
 import ShiftRoster from './pages/attendance/ShiftRoster';
 import LeaveBalanceSettlement from './pages/attendance/LeaveBalanceSettlement';
+import CutoverReadiness from './pages/attendance/CutoverReadiness';
 import AttendanceReports from './pages/attendance/AttendanceReports';
 
 export const App = () => {
@@ -185,6 +186,14 @@ export const App = () => {
           element={
             <ProtectedRoute requiredPermission={['leave.settle', 'hr.access']}>
               <LeaveBalanceSettlement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/cutover-readiness"
+          element={
+            <ProtectedRoute requiredPermission={['leave.settle', 'hr.access']}>
+              <CutoverReadiness />
             </ProtectedRoute>
           }
         />

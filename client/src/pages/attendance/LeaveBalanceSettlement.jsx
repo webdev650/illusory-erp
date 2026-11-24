@@ -25,9 +25,12 @@ import {
   HelpCircle,
   ChevronDown,
   Layers,
+  ShieldCheck,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export const LeaveBalanceSettlement = () => {
+  const navigate = useNavigate();
   const { user, role, permissions = [] } = useAuth();
   const isSuperAdmin = role === 'super_admin';
   const isHRAdmin = isSuperAdmin || role === 'hr' || permissions.includes('leave.settle') || permissions.includes('*');
@@ -570,6 +573,14 @@ export const LeaveBalanceSettlement = () => {
               >
                 <Layers className="w-3.5 h-3.5 mr-1 text-indigo-400" /> Policy Comparison
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/hrms/attendance/cutover-readiness')}
+                className="border-amber-500/40 text-amber-300 hover:bg-amber-950/40 shadow-sm"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 mr-1 text-amber-400" /> Cutover Readiness
+              </Button>
             </div>
 
             {/* Action Buttons */}
@@ -1091,6 +1102,13 @@ export const LeaveBalanceSettlement = () => {
                     </button>
                   </div>
 
+                  <div className="p-3 bg-violet-950/40 border border-violet-800/60 rounded-xl text-[11px] text-violet-200 flex items-start gap-2">
+                    <Info className="w-4 h-4 shrink-0 text-violet-400 mt-0.5" />
+                    <span>
+                      <strong>Cutover Import Mode:</strong> When committed, these imported BizCompass balances will replace the computed pro-rata entitlement as the authoritative baseline for this cutover year.
+                    </span>
+                  </div>
+
                   <div className="border border-slate-800 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
                     <table className="w-full text-left border-collapse text-[11px]">
                       <thead className="bg-slate-950 border-b border-slate-800 text-slate-400">
@@ -1099,7 +1117,9 @@ export const LeaveBalanceSettlement = () => {
                           <th className="p-2">Code</th>
                           <th className="p-2">Employee</th>
                           <th className="p-2">Leave Type</th>
-                          <th className="p-2 text-right">Opening</th>
+                          <th className="p-2 text-right">Imported</th>
+                          <th className="p-2 text-right">Computed</th>
+                          <th className="p-2 text-right">Variance</th>
                           <th className="p-2 text-right">Taken</th>
                           <th className="p-2">Status</th>
                         </tr>
@@ -1111,11 +1131,17 @@ export const LeaveBalanceSettlement = () => {
                             <td className="p-2 text-white">{p.employeeCode}</td>
                             <td className="p-2 text-slate-300">{p.employeeName || '-'}</td>
                             <td className="p-2 text-slate-300">{p.leaveTypeCode}</td>
-                            <td className="p-2 text-right text-emerald-400">{p.openingDays}</td>
-                            <td className="p-2 text-right text-rose-400">{p.takenDays}</td>
+                            <td className="p-2 text-right text-emerald-400 font-bold">{p.openingDays} d</td>
+                            <td className="p-2 text-right text-slate-400">{p.computedEntitlementDays ?? '-'} d</td>
+                            <td className={`p-2 text-right font-bold ${
+                              (p.varianceDays || 0) > 0 ? 'text-amber-400' : (p.varianceDays || 0) < 0 ? 'text-rose-400' : 'text-slate-400'
+                            }`}>
+                              {p.varianceDays !== undefined ? `${p.varianceDays > 0 ? '+' : ''}${p.varianceDays} d` : '-'}
+                            </td>
+                            <td className="p-2 text-right text-rose-400">{p.takenDays} d</td>
                             <td className="p-2">
                               {p.isValid ? (
-                                <span className="text-emerald-400">Valid</span>
+                                <span className="text-emerald-400">Valid (Replaces Computed)</span>
                               ) : (
                                 <span className="text-rose-400">{p.errors.join(', ')}</span>
                               )}

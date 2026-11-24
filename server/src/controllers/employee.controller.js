@@ -315,7 +315,7 @@ export const deleteEmployee = async (req, res, next) => {
 export const updateEmployeeStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, confirmationDate, reason, remarks } = req.body;
+    const { status, confirmationDate, reason, remarks, isVerified = false } = req.body;
 
     const validStatuses = ['active', 'confirmed', 'probation', 'notice', 'resigned', 'terminated', 'inactive'];
     if (!status || !validStatuses.includes(status)) {
@@ -333,14 +333,19 @@ export const updateEmployeeStatus = async (req, res, next) => {
 
     if (!employee.employment) employee.employment = {};
 
+    // Update verification flags
+    employee.employment.isStatusVerified = Boolean(isVerified);
+
     if (targetStatus === 'active') {
       const confDate = confirmationDate ? new Date(confirmationDate) : new Date();
       employee.employment.confirmationDate = confDate;
       employee.employment.probationEndDate = confDate;
       employee.employment.employeeType = 'Full-Time';
+      employee.employment.isConfirmationDateVerified = Boolean(isVerified);
     } else if (targetStatus === 'probation') {
       employee.employment.employeeType = 'Probation';
       employee.employment.confirmationDate = null;
+      employee.employment.isConfirmationDateVerified = false;
     }
 
     const changeReason = reason || remarks || `Status transitioned from ${oldStatus} to ${targetStatus}`;
@@ -351,6 +356,7 @@ export const updateEmployeeStatus = async (req, res, next) => {
       from: oldStatus,
       to: targetStatus,
       remarks: changeReason,
+      isVerified: Boolean(isVerified),
     });
 
     await employee.save();

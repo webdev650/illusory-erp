@@ -183,6 +183,8 @@ const employeeSchema = new mongoose.Schema(
       },
       probationEndDate: { type: Date, default: null },
       confirmationDate: { type: Date, default: null },
+      isConfirmationDateVerified: { type: Boolean, default: false },
+      isStatusVerified: { type: Boolean, default: false },
       noticePeriodDays: { type: Number, default: 30 },
     },
 
@@ -192,6 +194,7 @@ const employeeSchema = new mongoose.Schema(
         status: { type: String, required: true },
         changedAt: { type: Date, default: Date.now },
         reason: { type: String, default: '' },
+        isVerified: { type: Boolean, default: false },
       },
     ],
     education: [educationSchema],

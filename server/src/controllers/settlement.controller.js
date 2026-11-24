@@ -10,6 +10,7 @@ import { AttendancePolicy } from '../models/AttendancePolicy.js';
 import { Notification } from '../models/Notification.js';
 import { User } from '../models/User.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
+import { logAudit } from '../middleware/audit.js';
 import {
   getOrCreatePolicyYear,
   calculateSettlementRow,
@@ -867,14 +868,31 @@ export const importOpeningBalances = async (req, res, next) => {
       if (isValid) validCount++;
       else errorCount++;
 
+      // Calculate computed entitlement for comparison
+      let computedEntitlementMins = 0;
+      if (emp && lt) {
+        try {
+          computedEntitlementMins = calculateEntitlementMinutes(lt, emp, policyYear);
+        } catch (e) {
+          computedEntitlementMins = 0;
+        }
+      }
+      const computedEntitlementDays = parseFloat((computedEntitlementMins / minutesPerDay).toFixed(2));
+      const importedDays = parseFloat((openingMins / minutesPerDay).toFixed(2));
+      const varianceDays = parseFloat((importedDays - computedEntitlementDays).toFixed(2));
+
       preview.push({
         rowIndex: i + 1,
         employeeCode: row.employeeCode,
         employeeName: emp ? `${emp.personal?.firstName} ${emp.personal?.lastName}` : '',
         leaveTypeCode: row.leaveTypeCode,
         leaveTypeName: lt?.name || '',
-        openingDays: parseFloat((openingMins / minutesPerDay).toFixed(2)),
+        openingDays: importedDays,
         openingMinutes: openingMins,
+        computedEntitlementDays,
+        computedEntitlementMinutes: computedEntitlementMins,
+        varianceDays,
+        replacedComputed: true,
         takenDays: parseFloat((takenMins / minutesPerDay).toFixed(2)),
         takenMinutes: takenMins,
         isValid,
@@ -921,8 +939,14 @@ export const importOpeningBalances = async (req, res, next) => {
       }
 
       bal.openingMinutes = item.openingMinutes;
+      // Opening balance imported from legacy system replaces computed entitlement for cutover
+      bal.entitlementMinutes = item.openingMinutes;
+      bal.allocated = item.openingDays;
+      bal.isOpeningImported = true;
+
       if (item.takenMinutes > 0 && bal.takenMinutes === 0) {
         bal.takenMinutes = item.takenMinutes;
+        bal.used = item.takenDays;
       }
 
       await bal.save();
@@ -938,7 +962,7 @@ export const importOpeningBalances = async (req, res, next) => {
         days: item.openingDays,
         referenceModel: 'LeaveBalance',
         referenceId: bal._id,
-        notes: 'Opening balance imported from legacy system',
+        notes: 'Cutover opening balance imported from BizCompass (replaces computed entitlement)',
         createdBy: req.user._id,
       });
 
@@ -947,6 +971,22 @@ export const importOpeningBalances = async (req, res, next) => {
 
     // Recalculate settlement balances
     await recalculatePolicyYearBalances(policyYear._id);
+
+    try {
+      await logAudit({
+        req,
+        action: 'IMPORT_CUTOVER_BALANCES',
+        entity: 'LeavePolicyYear',
+        entityId: policyYear._id,
+        changes: {
+          committedCount,
+          policyYearCode: policyYear.code,
+          notes: 'Imported BizCompass opening balances replacing computed entitlement for cutover',
+        },
+      });
+    } catch (auditErr) {
+      console.warn('Audit log failed during importOpeningBalances:', auditErr.message);
+    }
 
     return sendSuccess(
       res,
@@ -1204,6 +1244,173 @@ export const getPolicyComparison = async (req, res, next) => {
         comparison,
       },
       'Policy comparison retrieved successfully'
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * 14. GET Cutover Readiness Checklist
+ * Evaluates the 9 cutover readiness checklist items:
+ * 1. HR confirmed leave start rule (joining vs confirmation)
+ * 2. Probation length
+ * 3. Probationer list and confirmation dates (checks unverified flags)
+ * 4. Entitlement rounding rule
+ * 5. Pro-rata method (months vs days)
+ * 6. Aryan Biswal working hours (7.45h vs 7.75h)
+ * 7. Opening carried-forward balances from 2025
+ * 8. BizCompass balances imported as cutover opening
+ * 9. Cutover reconciliation reviewed
+ */
+export const getCutoverReadiness = async (req, res, next) => {
+  try {
+    const policyYear =
+      (await LeavePolicyYear.findOne({ isCurrent: true })) ||
+      (await LeavePolicyYear.findOne({ code: 'PY-2026' })) ||
+      (await LeavePolicyYear.findOne().sort({ startDate: -1 }));
+
+    const employees = await Employee.find({ isDeleted: false });
+
+    // 1. Leave start rule
+    // Done if explicitly confirmed by HR, pending if default unverified
+    const isStartRuleConfirmed = false; // Pending HR answer
+
+    // 2. Probation length
+    const isProbationLengthConfirmed = false; // Pending HR answer
+
+    // 3. Probationer list and dates: check if any employee has unverified status/confirmation
+    const unverifiedEmployees = employees.filter(
+      (e) => !e.employment?.isStatusVerified || (e.employment?.confirmationDate && !e.employment?.isConfirmationDateVerified)
+    );
+    const probationerListDone = unverifiedEmployees.length === 0;
+
+    // 4. Entitlement rounding
+    const isRoundingConfirmed = false; // Pending HR answer
+
+    // 5. Pro-rata method
+    const isProRataConfirmed = false; // Pending HR answer
+
+    // 6. Aryan's working hours
+    const aryan = employees.find((e) => (e.employeeId || '').toUpperCase() === 'IDS-E26-SBD001');
+    const aryanHoursConfirmed = false; // In DB default is 7.75h, old report stated 7.45h; awaiting HR answer
+
+    // 7. Opening carried-forward balances from 2025
+    const carriedInBalances = await LeaveBalance.find({
+      year: 2026,
+      carriedInMinutes: { $gt: 0 },
+    });
+    const carryForwardDone = carriedInBalances.length > 0;
+
+    // 8. BizCompass balances imported
+    const importedBalances = await LeaveBalance.find({
+      year: 2026,
+      isOpeningImported: true,
+    });
+    const bizcompassImportDone = importedBalances.length > 0;
+
+    // 9. Reconciliation reviewed
+    const reconciliationReviewed = false; // Pending final sign-off
+
+    const checklist = [
+      {
+        id: 'leave_start_rule',
+        category: 'Policy Setting',
+        title: 'HR Confirmed Leave Start Rule',
+        description: 'Specify whether entitlement starts from Joining Date or Confirmation Date.',
+        currentValue: policyYear?.entitlementStart ? `Currently: ${policyYear.entitlementStart}` : 'Currently: joining',
+        status: isStartRuleConfirmed ? 'done' : 'pending',
+        targetScreen: '/hrms/attendance/configurations',
+      },
+      {
+        id: 'probation_length',
+        category: 'Policy Setting',
+        title: 'Standard Probation Length',
+        description: 'Confirm formal probation duration (e.g. 3 months, 6 months) across roles.',
+        currentValue: 'Awaiting confirmation (no standard set)',
+        status: isProbationLengthConfirmed ? 'done' : 'pending',
+        targetScreen: '/hrms/attendance/configurations',
+      },
+      {
+        id: 'probationer_list_dates',
+        category: 'Employee Records',
+        title: 'Probationer List & Confirmation Dates',
+        description: 'Verify status and confirmation dates for all 9 staff with amber unverified flags removed.',
+        currentValue: `${unverifiedEmployees.length} employee(s) unverified / inferred`,
+        status: probationerListDone ? 'done' : 'pending',
+        targetScreen: '/hrms/employees',
+      },
+      {
+        id: 'rounding_rule',
+        category: 'Calculation Engine',
+        title: 'Entitlement Rounding Rule',
+        description: 'Select entitlement rounding: None, Nearest 0.5 Day, or Round Down 0.5 Day.',
+        currentValue: policyYear?.entitlementRounding ? `Currently: ${policyYear.entitlementRounding}` : 'Currently: none',
+        status: isRoundingConfirmed ? 'done' : 'pending',
+        targetScreen: '/hrms/attendance/configurations',
+      },
+      {
+        id: 'prorata_method',
+        category: 'Calculation Engine',
+        title: 'Pro-Rata Entitlement Method',
+        description: 'Confirm pro-rata division by Calendar Months or Exact Days for mid-year joiners.',
+        currentValue: policyYear?.proRataCalculation ? `Currently: ${policyYear.proRataCalculation}` : 'Currently: months',
+        status: isProRataConfirmed ? 'done' : 'pending',
+        targetScreen: '/hrms/attendance/configurations',
+      },
+      {
+        id: 'aryan_hours',
+        category: 'Shift & Attendance',
+        title: "Aryan Biswal Working Hours & Shift",
+        description: 'Resolve shift duration for Aryan Biswal: 7.45h vs default 7.75h (10:00 to 18:45).',
+        currentValue: aryan ? `Assigned Shift: 7.75h (${aryan.employeeId})` : 'Awaiting check',
+        status: aryanHoursConfirmed ? 'done' : 'pending',
+        targetScreen: '/hrms/attendance/configurations',
+      },
+      {
+        id: 'opening_carry_2025',
+        category: 'Leave Balance',
+        title: 'Opening Carried-Forward Balances (2025)',
+        description: 'Confirm and record 2025 carry-forward balances for eligible senior staff (e.g. Aparna, Mihir).',
+        currentValue: carryForwardDone ? `${carriedInBalances.length} staff record(s) loaded` : 'None recorded',
+        status: carryForwardDone ? 'done' : 'pending',
+        targetScreen: '/hrms/attendance/settlement',
+      },
+      {
+        id: 'bizcompass_opening_import',
+        category: 'Leave Balance',
+        title: 'BizCompass Balances Imported as Cutover Entitlement',
+        description: 'Import cutover opening balances to replace computed entitlement with legacy baseline.',
+        currentValue: bizcompassImportDone ? `${importedBalances.length} balance record(s) imported` : 'Not yet imported',
+        status: bizcompassImportDone ? 'done' : 'pending',
+        targetScreen: '/hrms/attendance/settlement',
+      },
+      {
+        id: 'reconciliation_reviewed',
+        category: 'Audit & Compliance',
+        title: 'Cutover Reconciliation Reviewed & Signed Off',
+        description: 'HR and Super Admin review the policy comparison and dry-run variance sheet.',
+        currentValue: 'Pending review of comparison table',
+        status: reconciliationReviewed ? 'done' : 'pending',
+        targetScreen: '/hrms/attendance/settlement',
+      },
+    ];
+
+    const doneCount = checklist.filter((item) => item.status === 'done').length;
+    const pendingCount = checklist.length - doneCount;
+
+    return sendSuccess(
+      res,
+      {
+        summary: {
+          total: checklist.length,
+          done: doneCount,
+          pending: pendingCount,
+          isReadyForCutover: pendingCount === 0,
+        },
+        checklist,
+      },
+      'Cutover readiness status retrieved successfully'
     );
   } catch (err) {
     next(err);
