@@ -296,4 +296,165 @@ describe('Real Illusory Policy Audit Test Suite', () => {
       await LeaveBalance.deleteMany({ employee: testEmp._id });
     }
   });
+
+  // TEST 11: Both entitlementStart modes ("joining" vs "confirmation")
+  test('11. Both entitlementStart modes calculate correctly', async () => {
+    const cl = await LeaveType.findOne({ code: 'CL' });
+    const pl = await LeaveType.findOne({ code: 'PL' });
+    const basePy = policyYear2026?.toObject ? policyYear2026.toObject() : policyYear2026;
+
+    const probationJoiner = {
+      _id: new mongoose.Types.ObjectId(),
+      status: 'probation',
+      employment: { dateOfJoining: new Date('2026-07-06T00:00:00.000Z') },
+    };
+
+    // Mode A: "joining" (current) -> Probationer gets 50% CL (6 days = 2790 mins) + 1 day PL
+    const pyJoining = { ...basePy, proRataJoiners: true, entitlementStart: 'joining', entitlementRounding: 'none' };
+    expect(calculateEntitlementMinutes(cl, probationJoiner, pyJoining)).toBe(2790);
+    expect(calculateEntitlementMinutes(pl, probationJoiner, pyJoining)).toBe(465);
+
+    // Mode B: "confirmation" -> While on probation, employee gets 0 CL and only 1 day PL
+    const pyConfirmation = { ...basePy, proRataJoiners: true, entitlementStart: 'confirmation', entitlementRounding: 'none' };
+    expect(calculateEntitlementMinutes(cl, probationJoiner, pyConfirmation)).toBe(0);
+    expect(calculateEntitlementMinutes(pl, probationJoiner, pyConfirmation)).toBe(465);
+
+    // Confirmed employee with confirmationDate 2026-04-01 (9 months active)
+    const confirmedApril = {
+      _id: new mongoose.Types.ObjectId(),
+      status: 'active',
+      employment: {
+        dateOfJoining: new Date('2025-07-14T00:00:00.000Z'),
+        confirmationDate: new Date('2026-04-01T00:00:00.000Z'),
+      },
+    };
+    // 12 days * (9/12) = 9 days = 4185 mins
+    expect(calculateEntitlementMinutes(cl, confirmedApril, pyConfirmation)).toBe(4185);
+    expect(calculateEntitlementMinutes(pl, confirmedApril, pyConfirmation)).toBe(0);
+  });
+
+  // TEST 12: Probation then confirmation recalculation under confirmation mode
+  test('12. Probation then confirmation recalculation under confirmation mode updates entitlements', async () => {
+    const cl = await LeaveType.findOne({ code: 'CL' });
+    const pl = await LeaveType.findOne({ code: 'PL' });
+    const py = await LeavePolicyYear.findOne({ code: 'PY-2026' });
+
+    if (!py) return;
+
+    // Temporarily set policy year to confirmation mode
+    const prevStart = py.entitlementStart;
+    py.entitlementStart = 'confirmation';
+    await py.save();
+
+    const testEmp = await Employee.create({
+      employeeId: `TEST-CONF-${Date.now()}`,
+      status: 'probation',
+      personal: { firstName: 'Probation', lastName: 'Worker', phone: '9876543210', officialEmail: `conf-${Date.now()}@illusory.design` },
+      employment: {
+        dateOfJoining: new Date('2026-07-06T00:00:00.000Z'),
+        designation: 'Staff Designer',
+        department: (await Employee.findOne())?.employment?.department,
+      },
+    });
+
+    try {
+      // 1. In probation: CL must be 0, PL must be 465 mins
+      await recalculatePolicyYearBalances(py._id, testEmp._id);
+      const clBalProb = await LeaveBalance.findOne({ employee: testEmp._id, leaveType: cl._id, policyYear: py._id });
+      const plBalProb = await LeaveBalance.findOne({ employee: testEmp._id, leaveType: pl._id, policyYear: py._id });
+      expect(clBalProb?.entitlementMinutes || 0).toBe(0);
+      expect(plBalProb?.entitlementMinutes).toBe(465);
+
+      // 2. Confirm employee with confirmationDate 01-Oct-2026 (3 months active = 3/12 of 12 days = 3 days)
+      testEmp.status = 'active';
+      testEmp.employment.confirmationDate = new Date('2026-10-01T00:00:00.000Z');
+      await testEmp.save();
+
+      await recalculatePolicyYearBalances(py._id, testEmp._id);
+      const clBalConfirmed = await LeaveBalance.findOne({ employee: testEmp._id, leaveType: cl._id, policyYear: py._id });
+      const plBalConfirmed = await LeaveBalance.findOne({ employee: testEmp._id, leaveType: pl._id, policyYear: py._id });
+
+      // 12 days * 3/12 = 3 days = 1395 mins
+      expect(clBalConfirmed.entitlementMinutes).toBe(1395);
+      // Untaken PL disappears
+      expect(plBalConfirmed).toBeNull();
+    } finally {
+      py.entitlementStart = prevStart || 'joining';
+      await py.save();
+      await Employee.findByIdAndDelete(testEmp._id);
+      await LeaveBalance.deleteMany({ employee: testEmp._id });
+    }
+  });
+
+  // TEST 13: Entitlement rounding modes
+  test('13. Entitlement rounding modes (none, nearest_half, round_down_half) work correctly', async () => {
+    const bl = await LeaveType.findOne({ code: 'BL' }); // 5 days quota = 2325 mins
+    const basePy = policyYear2026?.toObject ? policyYear2026.toObject() : policyYear2026;
+
+    // May 7 joiner: 8/12 months active. 5 * (8/12) = 3.333 days = 1550 mins
+    const mayJoiner = {
+      _id: new mongoose.Types.ObjectId(),
+      status: 'active',
+      employment: { dateOfJoining: new Date('2026-05-07T00:00:00.000Z') },
+    };
+
+    const pyNone = { ...basePy, proRataJoiners: true, entitlementStart: 'joining', entitlementRounding: 'none' };
+    const pyNearest = { ...basePy, proRataJoiners: true, entitlementStart: 'joining', entitlementRounding: 'nearest_half' };
+    const pyDown = { ...basePy, proRataJoiners: true, entitlementStart: 'joining', entitlementRounding: 'round_down_half' };
+
+    const minsNone = calculateEntitlementMinutes(bl, mayJoiner, pyNone);
+    const minsNearest = calculateEntitlementMinutes(bl, mayJoiner, pyNearest);
+    const minsDown = calculateEntitlementMinutes(bl, mayJoiner, pyDown);
+
+    // 1550 mins = 3.33 days
+    expect(minsNone).toBe(1550);
+
+    // Nearest 0.5: 3.33 rounds to 3.5 days = 3.5 * 465 = 1628 mins
+    expect(minsNearest).toBe(1628);
+
+    // Floor 0.5: 3.33 floors to 3.0 days = 3.0 * 465 = 1395 mins
+    expect(minsDown).toBe(1395);
+  });
+
+  // TEST 14: Employee Code Uniqueness & Source Excel Verification
+  test('14. Employee codes strictly match source Excel and enforce database uniqueness', async () => {
+    const expectedCodes = {
+      'operations@illusorydesignstudios.com': 'IDS-E24-EX002',
+      'mihirdash@illusorydesignstudios.com': 'IDS-E25-CR001',
+      'pallabikar@illusorydesignstudios.com': 'IDS-E2026-DE001',
+      'tejaswinibishoyi@illusorydesignstudios.com': 'IDS-E26-GR002',
+      'shresthamohanty@illusorydesignstudios.com': 'IDS-E26-GR003',
+      'rahulmohanty@illusorydesignstudios.com': 'IDS-E26-CR003',
+      'hr@illusorydesignstudios.com': 'IDS-E26-OP001',
+      'laxmipriya@illusorydesignstudios.com': 'IDS-E26-MR001',
+      'aryanbiswal@illusorydesignstudios.com': 'IDS-E26-SBD001',
+    };
+
+    const employees = await Employee.find({ isDeleted: false });
+    expect(employees.length).toBe(9);
+
+    const codesSeen = new Set();
+    for (const emp of employees) {
+      const email = emp.personal?.officialEmail;
+      expect(expectedCodes[email]).toBeDefined();
+      expect(emp.employeeId).toBe(expectedCodes[email]);
+      expect(codesSeen.has(emp.employeeId)).toBe(false);
+      codesSeen.add(emp.employeeId);
+    }
+
+    // Uniqueness constraint enforcement test
+    let duplicateError = false;
+    try {
+      await Employee.create({
+        employeeId: 'IDS-E24-EX002', // Duplicate Aparna's code
+        status: 'active',
+        personal: { firstName: 'Dupe', lastName: 'Test', phone: '0000000000', officialEmail: 'dupe@test.com' },
+        employment: { department: employees[0].employment.department, designation: 'Cloner' },
+      });
+    } catch (err) {
+      duplicateError = true;
+      expect(String(err.code || err.name)).toMatch(/11000|MongoServerError/);
+    }
+    expect(duplicateError).toBe(true);
+  });
 });

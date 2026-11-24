@@ -39,34 +39,106 @@ export const getOrCreatePolicyYear = async (yearInput) => {
 };
 
 /**
+ * Rounding helper for entitlement in minutes
+ */
+export const applyEntitlementRounding = (minutes, roundingMode, minutesPerDay = STANDARD_MINUTES_PER_DAY) => {
+  if (!roundingMode || roundingMode === 'none') return minutes;
+  const days = minutes / minutesPerDay;
+  let roundedDays = days;
+  if (roundingMode === 'nearest_half') {
+    roundedDays = Math.round(days * 2) / 2;
+  } else if (roundingMode === 'round_down_half') {
+    roundedDays = Math.floor(days * 2) / 2;
+  }
+  return Math.round(roundedDays * minutesPerDay);
+};
+
+/**
  * 2. Calculate Pro-Rata Entitlement in Integer Minutes
  */
 export const calculateEntitlementMinutes = (leaveType, employee, policyYear) => {
+  const minutesPerDay = policyYear.minutesPerDay || STANDARD_MINUTES_PER_DAY;
+
   // Base yearly quota in minutes
   const baseMinutes = leaveType.yearlyQuotaMinutes > 0
     ? leaveType.yearlyQuotaMinutes
-    : (leaveType.yearlyQuota || 0) * (policyYear.minutesPerDay || STANDARD_MINUTES_PER_DAY);
+    : (leaveType.yearlyQuota || 0) * minutesPerDay;
 
   if (baseMinutes === 0) return 0;
 
-  // Probation Leave check: strictly reserved for employees on probation
-  if (['PL', 'PROBATION'].includes(leaveType.code) || leaveType.code.startsWith('PL')) {
-    if (employee.status !== 'probation') {
+  const isProbationLeave = ['PL', 'PROBATION'].includes(leaveType.code) || leaveType.code.startsWith('PL');
+  const isEmployeeProbation = employee.status === 'probation';
+
+  // 1. Probation Leave check: strictly reserved for employees on probation
+  if (isProbationLeave) {
+    if (!isEmployeeProbation) {
       return 0; // Confirmed employees get 0 probation leave
     }
+    return applyEntitlementRounding(baseMinutes, policyYear.entitlementRounding, minutesPerDay);
   }
 
-  // Joiner Pro-Rata
+  // 2. Mode: "confirmation" (Regular leave starts from confirmation date)
+  if (policyYear.entitlementStart === 'confirmation') {
+    // While employee is on probation, they receive ONLY Probation Leave (0 regular leave)
+    if (isEmployeeProbation) {
+      return 0;
+    }
+
+    // Confirmed employee: entitlement starts from confirmationDate
+    const rawConfDate = employee.employment?.confirmationDate || employee.confirmationDate;
+    const confDate = rawConfDate ? new Date(rawConfDate) : null;
+    const pyStart = new Date(policyYear.startDate);
+    const pyEnd = new Date(policyYear.endDate);
+
+    let rawMinutes = baseMinutes;
+
+    if (confDate && confDate > pyStart && confDate <= pyEnd) {
+      if (leaveType.code === 'BL') {
+        // Bereavement Leave in BizCompass stayed full 5 days unprorated
+        rawMinutes = baseMinutes;
+      } else if (policyYear.proRataCalculation === 'days') {
+        const totalDays = Math.round((pyEnd - pyStart) / 86400000) + 1;
+        const activeDays = Math.max(0, Math.round((pyEnd - confDate) / 86400000)) + 1;
+        rawMinutes = Math.round(baseMinutes * (activeDays / totalDays));
+      } else {
+        // By months: confirmation on or before 15th counts as full month
+        const confMonth = confDate.getUTCMonth();
+        const confDay = confDate.getUTCDate();
+        let activeMonths = 12 - confMonth;
+        if (confDay > 15) {
+          activeMonths = Math.max(0, activeMonths - 1);
+        }
+        rawMinutes = Math.round(baseMinutes * (activeMonths / 12));
+      }
+    } else if (!confDate) {
+      // If no confirmationDate recorded yet, fallback to joining date pro-rata
+      const rawJoinDate = employee.employment?.dateOfJoining || employee.employment?.joiningDate;
+      const joinDate = rawJoinDate ? new Date(rawJoinDate) : null;
+      if (joinDate && joinDate > pyStart && joinDate <= pyEnd) {
+        const joinMonth = joinDate.getUTCMonth();
+        const joinDay = joinDate.getUTCDate();
+        let activeMonths = 12 - joinMonth;
+        if (joinDay > 15) activeMonths = Math.max(0, activeMonths - 1);
+        rawMinutes = Math.round(baseMinutes * (activeMonths / 12));
+      }
+    }
+
+    return applyEntitlementRounding(rawMinutes, policyYear.entitlementRounding, minutesPerDay);
+  }
+
+  // 3. Mode: "joining" (Default current behaviour: pro-rata from joining date)
   const rawJoinDate = employee.employment?.dateOfJoining || employee.employment?.joiningDate;
   const joinDate = rawJoinDate ? new Date(rawJoinDate) : null;
   const pyStart = new Date(policyYear.startDate);
   const pyEnd = new Date(policyYear.endDate);
 
+  let resultMinutes = baseMinutes;
+
   if (policyYear.proRataJoiners && joinDate && joinDate > pyStart && joinDate <= pyEnd) {
     if (policyYear.proRataCalculation === 'days') {
       const totalDays = Math.round((pyEnd - pyStart) / 86400000) + 1;
       const activeDays = Math.max(0, Math.round((pyEnd - joinDate) / 86400000)) + 1;
-      return Math.round(baseMinutes * (activeDays / totalDays));
+      resultMinutes = Math.round(baseMinutes * (activeDays / totalDays));
     } else {
       // By months (joining on or before 15th counts as full month)
       const joinMonth = joinDate.getUTCMonth();
@@ -75,7 +147,7 @@ export const calculateEntitlementMinutes = (leaveType, employee, policyYear) => 
       if (joinDay > 15) {
         activeMonths = Math.max(0, activeMonths - 1);
       }
-      return Math.round(baseMinutes * (activeMonths / 12));
+      resultMinutes = Math.round(baseMinutes * (activeMonths / 12));
     }
   }
 
@@ -90,10 +162,10 @@ export const calculateEntitlementMinutes = (leaveType, employee, policyYear) => 
     exitDate <= pyEnd
   ) {
     const exitMonth = exitDate.getUTCMonth() + 1;
-    return Math.round(baseMinutes * (exitMonth / 12));
+    resultMinutes = Math.round(baseMinutes * (exitMonth / 12));
   }
 
-  return baseMinutes;
+  return applyEntitlementRounding(resultMinutes, policyYear.entitlementRounding, minutesPerDay);
 };
 
 /**

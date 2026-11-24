@@ -61,6 +61,27 @@ export const LeaveBalanceSettlement = () => {
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
 
+  // Policy Comparison State
+  const [comparisonModalOpen, setComparisonModalOpen] = useState(false);
+  const [comparisonList, setComparisonList] = useState([]);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonRounding, setComparisonRounding] = useState('none');
+
+  const loadPolicyComparison = async (roundingOverride) => {
+    try {
+      setComparisonLoading(true);
+      const r = roundingOverride !== undefined ? roundingOverride : comparisonRounding;
+      const res = await api.get(`/attendance/settlement/policy-comparison?rounding=${r}`);
+      if (res.success && res.data?.comparison) {
+        setComparisonList(res.data.comparison);
+      }
+    } catch (err) {
+      console.error('Failed to load policy comparison:', err);
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
+
   const [msg, setMsg] = useState(null);
 
   // 1. Load Policy Years
@@ -537,6 +558,17 @@ export const LeaveBalanceSettlement = () => {
                 className="border-slate-700 text-slate-300 hover:text-white"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 mr-1" /> Ledger CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  loadPolicyComparison();
+                  setComparisonModalOpen(true);
+                }}
+                className="border-indigo-500/40 text-indigo-300 hover:bg-indigo-950/40 shadow-sm"
+              >
+                <Layers className="w-3.5 h-3.5 mr-1 text-indigo-400" /> Policy Comparison
               </Button>
             </div>
 
@@ -1192,6 +1224,182 @@ export const LeaveBalanceSettlement = () => {
                 className="border-slate-700 text-slate-300"
               >
                 Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Policy Comparison (Joining vs Confirmation vs Old BizCompass System) */}
+      {comparisonModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-indigo-400" />
+                  Policy Comparison Matrix: Joining Date vs Confirmation Date vs Old System
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Read-only comparison of annual leave quotas for all 9 real employees under both policy models.
+                </p>
+              </div>
+              <button
+                onClick={() => setComparisonModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-xl bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Context Notice & Rounding Selector */}
+            <div className="p-4 bg-slate-950/60 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-amber-300">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>
+                  <strong>Awaiting HR Decision:</strong> Currently defaulted to <em>From Joining Date</em>. Confirmation mode aligns with BizCompass zero-probation balances.
+                </span>
+              </div>
+
+              {/* Rounding simulation */}
+              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 p-1 rounded-xl">
+                <span className="text-slate-400 text-[11px] px-2">Round to:</span>
+                {[
+                  { key: 'none', label: 'None (Exact)' },
+                  { key: 'nearest_half', label: 'Nearest 0.5d' },
+                  { key: 'round_down_half', label: 'Floor 0.5d' },
+                ].map((r) => (
+                  <button
+                    key={r.key}
+                    onClick={() => {
+                      setComparisonRounding(r.key);
+                      loadPolicyComparison(r.key);
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all ${
+                      comparisonRounding === r.key
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Matrix Table */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {comparisonLoading ? (
+                <div className="py-12 flex justify-center items-center text-xs text-slate-400">
+                  <Clock className="w-5 h-5 animate-spin mr-2" />
+                  Calculating comparative entitlements...
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-950/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800 text-[10px]">
+                      <th className="py-3 px-3">Employee</th>
+                      <th className="py-3 px-2">Status / Dates</th>
+                      <th className="py-3 px-3 bg-slate-800/40 text-slate-300">
+                        Rule A: From Joining (CL/AL/SL/BL/PL = Total)
+                      </th>
+                      <th className="py-3 px-3 bg-emerald-950/30 text-emerald-300">
+                        Rule B: From Confirmation (CL/AL/SL/BL/PL = Total)
+                      </th>
+                      <th className="py-3 px-3 bg-violet-950/30 text-violet-300">
+                        Old System Reference <span className="block text-[9px] lowercase italic font-normal text-violet-400">(from old system screenshot, verify)</span>
+                      </th>
+                      <th className="py-3 px-3 text-right">Variance Analysis</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 font-mono text-[11px]">
+                    {comparisonList.map((row) => (
+                      <tr key={row.employeeId} className="hover:bg-slate-800/30">
+                        <td className="py-3 px-3 font-sans font-semibold text-white">
+                          <div>
+                            <span>{row.name}</span>
+                            <span className="block text-[10px] font-mono text-slate-400">{row.employeeCode}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-2 font-sans text-slate-300">
+                          <div className="space-y-0.5">
+                            <span className={`inline-block px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                              row.status === 'probation'
+                                ? 'bg-amber-950 text-amber-300 border border-amber-800/60'
+                                : 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'
+                            }`}>
+                              {row.status}
+                            </span>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              DOJ: {row.dateOfJoining ? new Date(row.dateOfJoining).toISOString().split('T')[0] : '-'}
+                            </div>
+                            {row.confirmationDate && (
+                              <div className="text-[10px] text-emerald-400 font-mono">
+                                Conf: {new Date(row.confirmationDate).toISOString().split('T')[0]}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Joining Rule */}
+                        <td className="py-3 px-3 bg-slate-950/20 text-slate-300">
+                          <div>
+                            <span className="font-bold text-white">{row.joining.total}d</span>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {row.joining.cl} / {row.joining.al} / {row.joining.sl} / {row.joining.bl} / {row.joining.pl}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Confirmation Rule */}
+                        <td className="py-3 px-3 bg-emerald-950/20 text-emerald-200">
+                          <div>
+                            <span className="font-bold">{row.confirmation.total}d</span>
+                            <div className="text-[10px] text-emerald-400 mt-0.5">
+                              {row.confirmation.cl} / {row.confirmation.al} / {row.confirmation.sl} / {row.confirmation.bl} / {row.confirmation.pl}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Reference Old System */}
+                        <td className="py-3 px-3 bg-violet-950/20 text-violet-200">
+                          <div>
+                            <span className="font-bold">{row.referenceOldSystem.total}d</span>
+                            <div className="text-[10px] text-violet-400 mt-0.5">
+                              {row.referenceOldSystem.cl} / {row.referenceOldSystem.al} / {row.referenceOldSystem.sl} / {row.referenceOldSystem.bl} / {row.referenceOldSystem.pl}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Variance badge */}
+                        <td className="py-3 px-3 text-right font-sans">
+                          {row.differences.matchesConfirmation ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                              <Check className="w-3 h-3" /> Matches Old System
+                            </span>
+                          ) : row.differences.hasJoiningMismatch ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800">
+                              +{row.differences.joiningDiff}d vs Old System
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">Identical</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setComparisonModalOpen(false)}
+                className="border-slate-700 text-slate-300"
+              >
+                Close Comparison
               </Button>
             </div>
           </div>

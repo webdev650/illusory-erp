@@ -21,6 +21,9 @@ import {
   Edit2,
   Clock,
   AlertTriangle,
+  Layers,
+  FileSpreadsheet,
+  HelpCircle,
 } from 'lucide-react';
 
 export const Configurations = () => {
@@ -69,6 +72,60 @@ export const Configurations = () => {
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptCode, setNewDeptCode] = useState('');
   const [newDeptDesc, setNewDeptDesc] = useState('');
+
+  // Leave Policy & Comparison State
+  const [leavePolicyYear, setLeavePolicyYear] = useState(null);
+  const [entitlementStartSetting, setEntitlementStartSetting] = useState('joining');
+  const [entitlementRoundingSetting, setEntitlementRoundingSetting] = useState('none');
+  const [comparisonRoundingPreview, setComparisonRoundingPreview] = useState('none');
+  const [comparisonList, setComparisonList] = useState([]);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [policySaving, setPolicySaving] = useState(false);
+
+  const loadLeavePolicyAndComparison = async (roundingOverride) => {
+    try {
+      setComparisonLoading(true);
+      const roundingToUse = roundingOverride !== undefined ? roundingOverride : comparisonRoundingPreview;
+      const [yearsRes, compRes] = await Promise.all([
+        api.get('/attendance/settlement/years').catch(() => ({ data: [] })),
+        api.get(`/attendance/settlement/policy-comparison?rounding=${roundingToUse}`).catch(() => ({ data: null })),
+      ]);
+
+      if (yearsRes.success && yearsRes.data?.length > 0) {
+        const cur = yearsRes.data[0];
+        setLeavePolicyYear(cur);
+        setEntitlementStartSetting(cur.entitlementStart || 'joining');
+        setEntitlementRoundingSetting(cur.entitlementRounding || 'none');
+      }
+
+      if (compRes?.success && compRes.data?.comparison) {
+        setComparisonList(compRes.data.comparison);
+      }
+    } catch (err) {
+      console.warn('Failed to load leave policy comparison:', err);
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
+
+  const handleSavePolicySettings = async () => {
+    if (!leavePolicyYear?._id) return;
+    setPolicySaving(true);
+    try {
+      const res = await api.put(`/attendance/settlement/years/${leavePolicyYear._id}/settings`, {
+        entitlementStart: entitlementStartSetting,
+        entitlementRounding: entitlementRoundingSetting,
+      });
+      if (res.success) {
+        setMsg('Leave policy settings updated successfully!');
+        loadLeavePolicyAndComparison();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update policy settings');
+    } finally {
+      setPolicySaving(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -337,6 +394,33 @@ export const Configurations = () => {
         >
           <Calendar className="w-4 h-4" />
           <span>Holidays ({holidays.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('shifts')}
+          className={`pb-3 flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'shifts'
+              ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+              : 'border-transparent text-slate-400 hover:text-slate-700'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>Shifts & Timings ({shifts.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('leave-policy');
+            loadLeavePolicyAndComparison();
+          }}
+          className={`pb-3 flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'leave-policy'
+              ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+              : 'border-transparent text-slate-400 hover:text-slate-700'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Leave Policy & Comparison</span>
         </button>
       </div>
 
@@ -1012,6 +1096,304 @@ export const Configurations = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 6: Leave Policy & Comparison */}
+      {activeTab === 'leave-policy' && (
+        <div className="space-y-6">
+          {/* HR Decision Context Banner */}
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-bold text-amber-900 dark:text-amber-200">
+                Awaiting HR Decision: Leave Entitlement Start & Rounding Rules
+              </p>
+              <p className="text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
+                Historical records in BizCompass showed that staff on probation had <strong>0 Casual, 0 Annual, 0 Sick, and 0 Bereavement leave</strong> (only 1 Probation Leave). Under the default joining-date rule, 6 unconfirmed staff receive ~100 days of leave they did not have in BizCompass. The setting below defaults to <strong>From Joining Date</strong> (current behavior). Once HR confirms, switch to <strong>From Confirmation Date</strong> with one click.
+              </p>
+            </div>
+          </div>
+
+          {/* Policy Settings Configuration Card */}
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200/80 dark:border-slate-700/80 shadow-sm space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-brand-600" />
+                  Leave Entitlement & Rounding Configuration ({leavePolicyYear?.code || 'PY-2026'})
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Configure when annual leave quotas begin and whether days round to the nearest half day.
+                </p>
+              </div>
+              <button
+                onClick={handleSavePolicySettings}
+                disabled={policySaving}
+                className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {policySaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                <span>Save Policy Settings</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+              {/* Setting 1: Entitlement Start */}
+              <div className="space-y-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700">
+                <label className="font-bold text-slate-900 dark:text-slate-100 block">
+                  1. Entitlement Start Policy (<span className="text-brand-600">entitlementStart</span>)
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="entitlementStart"
+                      value="joining"
+                      checked={entitlementStartSetting === 'joining'}
+                      onChange={() => setEntitlementStartSetting('joining')}
+                      className="mt-0.5 text-brand-600 focus:ring-brand-500"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        From Joining Date (Default / Current)
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Pro-rata calculation begins from the employee's date of joining regardless of probation status.
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <input
+                      type="radio"
+                      name="entitlementStart"
+                      value="confirmation"
+                      checked={entitlementStartSetting === 'confirmation'}
+                      onChange={() => setEntitlementStartSetting('confirmation')}
+                      className="mt-0.5 text-brand-600 focus:ring-brand-500"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        From Confirmation Date (Recommended by BizCompass Audit)
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        While in probation, employees receive <strong>ONLY Probation Leave (1 day)</strong>. Regular leave (CL, AL, SL, BL) starts upon confirmation date, pro-rated to year-end.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Setting 2: Entitlement Rounding */}
+              <div className="space-y-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700">
+                <label className="font-bold text-slate-900 dark:text-slate-100 block">
+                  2. Entitlement Rounding Policy (<span className="text-brand-600">entitlementRounding</span>)
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="entitlementRounding"
+                      value="none"
+                      checked={entitlementRoundingSetting === 'none'}
+                      onChange={() => setEntitlementRoundingSetting('none')}
+                      className="mt-0.5 text-brand-600 focus:ring-brand-500"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        None (Exact Decimals, e.g. 3.33d, 2.92d)
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Stored in integer minutes; displayed without rounding to fractions.
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <input
+                      type="radio"
+                      name="entitlementRounding"
+                      value="nearest_half"
+                      checked={entitlementRoundingSetting === 'nearest_half'}
+                      onChange={() => setEntitlementRoundingSetting('nearest_half')}
+                      className="mt-0.5 text-brand-600 focus:ring-brand-500"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        Nearest Half Day (0.5 Day Multiples)
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Rounds to standard half-day units (e.g. 2.92d &rarr; 3.0d, 3.33d &rarr; 3.5d, 1.67d &rarr; 1.5d).
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <input
+                      type="radio"
+                      name="entitlementRounding"
+                      value="round_down_half"
+                      checked={entitlementRoundingSetting === 'round_down_half'}
+                      onChange={() => setEntitlementRoundingSetting('round_down_half')}
+                      className="mt-0.5 text-brand-600 focus:ring-brand-500"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        Round Down to Half Day (Floor 0.5 Day)
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Conservative floor rounding (e.g. 2.92d &rarr; 2.5d, 3.33d &rarr; 3.0d).
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Policy Comparison Table */}
+          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden shadow-sm">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-brand-600" />
+                  Policy Comparison Matrix: Joining vs Confirmation vs Old BizCompass System
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Read-only comparison of annual entitlement across all 9 real staff under both rules.
+                </p>
+              </div>
+
+              {/* Rounding Simulation Pills */}
+              <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl text-[11px]">
+                <span className="text-slate-400 px-2 font-medium">Simulate Rounding:</span>
+                {[
+                  { key: 'none', label: 'None' },
+                  { key: 'nearest_half', label: 'Nearest 0.5d' },
+                  { key: 'round_down_half', label: 'Floor 0.5d' },
+                ].map((r) => (
+                  <button
+                    key={r.key}
+                    onClick={() => {
+                      setComparisonRoundingPreview(r.key);
+                      loadLeavePolicyAndComparison(r.key);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                      comparisonRoundingPreview === r.key
+                        ? 'bg-white dark:bg-slate-800 text-brand-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              {comparisonLoading ? (
+                <div className="py-12 flex justify-center items-center text-xs text-slate-400">
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  Loading policy comparison data...
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-100 dark:border-slate-700 text-[10px]">
+                    <tr>
+                      <th className="py-3 px-4">Employee</th>
+                      <th className="py-3 px-3">Status / Dates</th>
+                      <th className="py-3 px-4 bg-slate-100/50 dark:bg-slate-800/50">
+                        Rule A: From Joining (CL/AL/SL/BL/PL = Total)
+                      </th>
+                      <th className="py-3 px-4 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-300">
+                        Rule B: From Confirmation (CL/AL/SL/BL/PL = Total)
+                      </th>
+                      <th className="py-3 px-4 bg-violet-50/50 dark:bg-violet-950/20 text-violet-900 dark:text-violet-300">
+                        Old System Reference <span className="block text-[9px] lowercase italic font-normal text-violet-500">(from old system screenshot, verify)</span>
+                      </th>
+                      <th className="py-3 px-4 text-right">Variance Analysis</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-mono text-[11px]">
+                    {comparisonList.map((row) => (
+                      <tr key={row.employeeId} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td className="py-3 px-4 font-sans font-semibold text-slate-800 dark:text-slate-100">
+                          <div>
+                            <span>{row.name}</span>
+                            <span className="block text-[10px] font-mono text-slate-400">{row.employeeCode}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-sans text-slate-600 dark:text-slate-300">
+                          <div className="space-y-0.5">
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              row.status === 'probation'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                            }`}>
+                              {row.status}
+                            </span>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              DOJ: {row.dateOfJoining ? new Date(row.dateOfJoining).toISOString().split('T')[0] : '-'}
+                            </div>
+                            {row.confirmationDate && (
+                              <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">
+                                Conf: {new Date(row.confirmationDate).toISOString().split('T')[0]}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Joining Rule */}
+                        <td className="py-3 px-4 bg-slate-50/40 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300">
+                          <div>
+                            <span className="font-bold text-slate-900 dark:text-white">{row.joining.total} days</span>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {row.joining.cl} / {row.joining.al} / {row.joining.sl} / {row.joining.bl} / {row.joining.pl}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Confirmation Rule */}
+                        <td className="py-3 px-4 bg-emerald-50/30 dark:bg-emerald-950/10 text-emerald-900 dark:text-emerald-200">
+                          <div>
+                            <span className="font-bold">{row.confirmation.total} days</span>
+                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+                              {row.confirmation.cl} / {row.confirmation.al} / {row.confirmation.sl} / {row.confirmation.bl} / {row.confirmation.pl}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Old System Reference */}
+                        <td className="py-3 px-4 bg-violet-50/30 dark:bg-violet-950/10 text-violet-900 dark:text-violet-200">
+                          <div>
+                            <span className="font-bold">{row.referenceOldSystem.total} days</span>
+                            <div className="text-[10px] text-violet-600 dark:text-violet-400 mt-0.5">
+                              {row.referenceOldSystem.cl} / {row.referenceOldSystem.al} / {row.referenceOldSystem.sl} / {row.referenceOldSystem.bl} / {row.referenceOldSystem.pl}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Differences */}
+                        <td className="py-3 px-4 text-right font-sans">
+                          {row.differences.matchesConfirmation ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              <Check className="w-3 h-3" /> Matches Old System
+                            </span>
+                          ) : row.differences.hasJoiningMismatch ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              +{row.differences.joiningDiff}d vs Old System
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-semibold">Identical</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
       )}

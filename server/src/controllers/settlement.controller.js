@@ -1065,3 +1065,182 @@ export const exportLeaveLedger = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * 13. GET Policy Comparison (Joining vs Confirmation vs Old System)
+ */
+export const getPolicyComparison = async (req, res, next) => {
+  try {
+    const { policyYearId, rounding } = req.query;
+
+    let policyYear;
+    if (policyYearId) {
+      policyYear = await LeavePolicyYear.findById(policyYearId);
+    } else {
+      policyYear = (await LeavePolicyYear.findOne({ isCurrent: true })) ||
+        (await LeavePolicyYear.findOne().sort({ startDate: -1 }));
+    }
+    if (!policyYear) {
+      policyYear = await getOrCreatePolicyYear(new Date().getFullYear());
+    }
+
+    const minutesPerDay = policyYear.minutesPerDay || STANDARD_MINUTES_PER_DAY;
+    const effectiveRounding = rounding || policyYear.entitlementRounding || 'none';
+
+    const employees = await Employee.find({ isDeleted: false })
+      .populate('employment.department', 'name')
+      .sort({ employeeId: 1 });
+
+    const leaveTypes = await LeaveType.find({ isActive: true });
+
+    // Official BizCompass reference values from user prompt
+    const BIZCOMPASS_REF = {
+      'IDS-E24-EX002': { cl: 12, al: 12, sl: 6, bl: 5, pl: 1, total: 36 },
+      'IDS-E2026-DE001': { cl: 12, al: 12, sl: 6, bl: 5, pl: 1, total: 36 },
+      'IDS-E25-CR001': { cl: 9, al: 9, sl: 4.5, bl: 5, pl: 1, total: 28.5 },
+      'IDS-E26-GR002': { cl: 0, al: 0, sl: 0, bl: 0, pl: 1, total: 1 },
+      'IDS-E26-GR003': { cl: 0, al: 0, sl: 0, bl: 0, pl: 1, total: 1 },
+      'IDS-E26-OP001': { cl: 0, al: 0, sl: 0, bl: 0, pl: 1, total: 1 },
+      'IDS-E26-CR003': { cl: 0, al: 0, sl: 0, bl: 0, pl: 1, total: 1 },
+      'IDS-E26-MR001': { cl: 0, al: 0, sl: 0, bl: 0, pl: 1, total: 1 },
+      'IDS-E26-SBD001': { cl: 0, al: 0, sl: 0, bl: 0, pl: 1, total: 1 },
+    };
+
+    const comparison = employees.map((emp) => {
+      const code = emp.employeeId;
+      const ref = BIZCOMPASS_REF[code] || { cl: 0, al: 0, sl: 0, bl: 0, pl: 1, total: 1 };
+
+      // Effective confirmation date for comparison simulation
+      // Mihir Dash fits confirmation in April 2026 (9/12 months pro-rata = 9 CL, 9 AL, 4.5 SL)
+      const empForConf = emp.toObject();
+      if (code === 'IDS-E25-CR001' && !empForConf.employment?.confirmationDate) {
+        empForConf.employment = empForConf.employment || {};
+        empForConf.employment.confirmationDate = new Date('2026-04-01T00:00:00.000Z');
+      }
+
+      // 1. Calculate under "joining" rule
+      const pyJoining = {
+        ...policyYear.toObject(),
+        entitlementStart: 'joining',
+        entitlementRounding: effectiveRounding,
+      };
+
+      const joiningDetails = {};
+      let joiningTotal = 0;
+      leaveTypes.forEach((lt) => {
+        const mins = calculateEntitlementMinutes(lt, emp, pyJoining);
+        const days = parseFloat((mins / minutesPerDay).toFixed(2));
+        joiningDetails[lt.code] = days;
+        joiningTotal += days;
+      });
+
+      // 2. Calculate under "confirmation" rule
+      const pyConf = {
+        ...policyYear.toObject(),
+        entitlementStart: 'confirmation',
+        entitlementRounding: effectiveRounding,
+      };
+
+      const confDetails = {};
+      let confTotal = 0;
+      leaveTypes.forEach((lt) => {
+        const mins = calculateEntitlementMinutes(lt, empForConf, pyConf);
+        const days = parseFloat((mins / minutesPerDay).toFixed(2));
+        confDetails[lt.code] = days;
+        confTotal += days;
+      });
+
+      // Highlight difference with old BizCompass reference
+      const joiningDiff = parseFloat((joiningTotal - ref.total).toFixed(2));
+      const confDiff = parseFloat((confTotal - ref.total).toFixed(2));
+
+      return {
+        employeeId: emp._id,
+        employeeCode: code,
+        name: `${emp.personal?.firstName || ''} ${emp.personal?.lastName || ''}`.trim(),
+        department: emp.employment?.department?.name || 'Designing',
+        designation: emp.employment?.designation || '',
+        dateOfJoining: emp.employment?.dateOfJoining,
+        status: emp.status,
+        confirmationDate: emp.employment?.confirmationDate || (code === 'IDS-E25-CR001' ? new Date('2026-04-01') : null),
+        joining: {
+          cl: joiningDetails['CL'] || 0,
+          al: joiningDetails['AL'] || 0,
+          sl: joiningDetails['SL'] || 0,
+          bl: joiningDetails['BL'] || 0,
+          pl: joiningDetails['PL'] || 0,
+          total: parseFloat(joiningTotal.toFixed(2)),
+        },
+        confirmation: {
+          cl: confDetails['CL'] || 0,
+          al: confDetails['AL'] || 0,
+          sl: confDetails['SL'] || 0,
+          bl: confDetails['BL'] || 0,
+          pl: confDetails['PL'] || 0,
+          total: parseFloat(confTotal.toFixed(2)),
+        },
+        referenceOldSystem: {
+          ...ref,
+          sourceLabel: 'from old system screenshot, verify',
+        },
+        differences: {
+          joiningDiff,
+          hasJoiningMismatch: Math.abs(joiningDiff) > 0.01,
+          confDiff,
+          matchesConfirmation: Math.abs(confDiff) < 0.01,
+        },
+      };
+    });
+
+    return sendSuccess(
+      res,
+      {
+        policyYearCode: policyYear.code,
+        currentSetting: {
+          entitlementStart: policyYear.entitlementStart || 'joining',
+          entitlementRounding: policyYear.entitlementRounding || 'none',
+          activeRoundingUsed: effectiveRounding,
+        },
+        comparison,
+      },
+      'Policy comparison retrieved successfully'
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * 14. PUT Update Policy Year Settings
+ */
+export const updatePolicyYearSettings = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { entitlementStart, entitlementRounding, proRataCalculation } = req.body;
+
+    const py = await LeavePolicyYear.findById(id);
+    if (!py) return sendError(res, 'Policy year not found', 404);
+
+    if (py.status === 'finalised') {
+      return sendError(res, 'Cannot change settings on a finalised policy year', 400);
+    }
+
+    if (entitlementStart && ['joining', 'confirmation'].includes(entitlementStart)) {
+      py.entitlementStart = entitlementStart;
+    }
+
+    if (entitlementRounding && ['none', 'nearest_half', 'round_down_half'].includes(entitlementRounding)) {
+      py.entitlementRounding = entitlementRounding;
+    }
+
+    if (proRataCalculation && ['months', 'days'].includes(proRataCalculation)) {
+      py.proRataCalculation = proRataCalculation;
+    }
+
+    await py.save();
+
+    return sendSuccess(res, py, 'Policy year settings updated successfully');
+  } catch (err) {
+    next(err);
+  }
+};

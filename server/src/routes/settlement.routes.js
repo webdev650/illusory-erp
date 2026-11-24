@@ -12,6 +12,8 @@ import {
   importOpeningBalances,
   exportSettlementSheet,
   exportLeaveLedger,
+  getPolicyComparison,
+  updatePolicyYearSettings,
 } from '../controllers/settlement.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
@@ -33,5 +35,9 @@ router.get('/history/:employeeId', requirePermission('leave.settle'), getEmploye
 router.post('/import', requirePermission('leave.settle'), importOpeningBalances);
 router.get('/export/settlement', requirePermission('leave.settle'), exportSettlementSheet);
 router.get('/export/ledger', requirePermission('leave.settle'), exportLeaveLedger);
+
+// Policy Comparison & Policy Year Settings (HR and Super Admin)
+router.get('/policy-comparison', requirePermission('leave.settle'), getPolicyComparison);
+router.put('/years/:id/settings', requirePermission('leave.settle'), updatePolicyYearSettings);
 
 export default router;

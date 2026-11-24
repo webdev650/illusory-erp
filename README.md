@@ -273,3 +273,24 @@ Balances are stored in **integer minutes** (never rounded in DB; displayed as da
   - `Save With Settlement`: Atomically creates/updates opening balances for the subsequent policy year.
   - `Finalise`: Blocks further leave/regularization edits in the year; sets `attendanceLockedUpToDate`.
   - `Reopen`: Super Admin only; requires mandatory justification and validates no carry-in balances have been utilized.
+
+---
+
+### 🚀 BizCompass Cutover & Opening Balance Import Architecture
+
+During final migration cutover from BizCompass to Illusory ERP:
+1. **Opening Balances as Source of Truth**:
+   - The **Opening Balance Import** (`POST /api/v1/attendance/settlement/import` or UI button **"Import Opening"** on Page 10) is the official mechanism for loading real-world balances at cutover.
+   - Values extracted from BizCompass (Casual, Annual, Sick, Bereavement, Comp-Off) are imported with `openingDays` / `openingMinutes` and `takenDays` / `takenMinutes`.
+   - On cutover, these verified historical values supersede or seed the computed entitlements for the open policy year (`PY-2026`).
+2. **Strict Matching by Employee Code**:
+   - The import matches employees strictly by their immutable `employeeCode` (`IDS-E24-EX002`, `IDS-E25-CR001`, `IDS-E2026-DE001`, `IDS-E26-GR002`, `IDS-E26-GR003`, `IDS-E26-CR003`, `IDS-E26-OP001`, `IDS-E26-MR001`, `IDS-E26-SBD001`).
+   - If an employee code does not exist in the master database, the row is rejected during the two-pass dry-run validation.
+3. **Configurable Entitlement Policies (Configurations > Leave Policy & Comparison)**:
+   - `entitlementStart`:
+     - `"joining"` (Default): Pro-rata calculated from employee's date of joining.
+     - `"confirmation"`: Regular leave quotas (CL, AL, SL, BL) start only upon probation confirmation date; employees on probation receive only 1 Probation Leave.
+   - `entitlementRounding`:
+     - `"none"` (Default): Stored in integer minutes; displayed as exact decimals (e.g. 3.33d, 2.92d).
+     - `"nearest_half"`: Stored in integer minutes; rounded to the nearest 0.5 day (e.g. 2.92d &rarr; 3.0d, 3.33d &rarr; 3.5d).
+     - `"round_down_half"`: Floor rounding to the nearest 0.5 day.

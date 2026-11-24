@@ -55,6 +55,16 @@ const leavePolicyYearSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    entitlementStart: {
+      type: String,
+      enum: ['joining', 'confirmation'],
+      default: 'joining', // Default to joining (current behaviour) awaiting HR decision
+    },
+    entitlementRounding: {
+      type: String,
+      enum: ['none', 'nearest_half', 'round_down_half'],
+      default: 'none', // Default to none awaiting HR decision
+    },
     finalisedAt: {
       type: Date,
       default: null,
