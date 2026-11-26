@@ -20,7 +20,7 @@ import attendanceRoutes from './attendance.routes.js';
 import letterRoutes from './letter.routes.js';
 import performanceRoutes from './performance.routes.js';
 import { getMyPerformance } from '../controllers/performance.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { verifyPublicLetter } from '../controllers/letter.controller.js';
 
 const router = Router();
@@ -29,7 +29,7 @@ const router = Router();
 router.get('/verify/:token', verifyPublicLetter);
 
 // Me Performance endpoint
-router.get('/me/performance', authenticate, getMyPerformance);
+router.get('/me/performance', requireAuth, getMyPerformance);
 
 // Liveness & readiness probes
 router.use('/', healthRoutes);

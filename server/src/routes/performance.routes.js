@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { authenticate, checkPermission } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import * as perfController from '../controllers/performance.controller.js';
 
 const router = Router();
 
 // Require authentication for all performance endpoints
-router.use(authenticate);
+router.use(requireAuth);
 
 // 1. Overview and Self Dashboard
 router.get('/summary', perfController.getPerformanceSummary);
@@ -14,20 +15,20 @@ router.get('/me', perfController.getMyPerformance);
 
 // 2. Review Cycles
 router.get('/cycles', perfController.listCycles);
-router.post('/cycles', checkPermission('performance.cycle.manage'), perfController.createCycle);
-router.post('/cycles/:id/start', checkPermission('performance.cycle.manage'), perfController.startCycle);
-router.post('/cycles/:id/publish', checkPermission('performance.publish'), perfController.publishCycle);
-router.post('/cycles/:id/close', checkPermission('performance.cycle.manage'), perfController.closeCycle);
+router.post('/cycles', requirePermission('performance.cycle.manage'), perfController.createCycle);
+router.post('/cycles/:id/start', requirePermission('performance.cycle.manage'), perfController.startCycle);
+router.post('/cycles/:id/publish', requirePermission('performance.publish'), perfController.publishCycle);
+router.post('/cycles/:id/close', requirePermission('performance.cycle.manage'), perfController.closeCycle);
 
 // 3. Review Templates
 router.get('/templates', perfController.listTemplates);
-router.post('/templates', checkPermission('performance.template.manage'), perfController.createTemplate);
+router.post('/templates', requirePermission('performance.template.manage'), perfController.createTemplate);
 
 // 4. Goals (OKR)
 router.get('/goals', perfController.listGoals);
-router.post('/goals', checkPermission('performance.goal.manage'), perfController.createGoal);
+router.post('/goals', requirePermission('performance.goal.manage'), perfController.createGoal);
 router.post('/goals/:id/updates', perfController.addGoalProgressUpdate);
-router.post('/goals/:id/approve', checkPermission('performance.goal.approve'), async (req, res, next) => {
+router.post('/goals/:id/approve', requirePermission('performance.goal.approve'), async (req, res, next) => {
   // Directly approve via goal approval endpoint or delegate
   req.body.action = 'approved';
   next();
@@ -37,13 +38,13 @@ router.post('/goals/:id/approve', checkPermission('performance.goal.approve'), a
 router.get('/reviews', perfController.listReviews);
 router.get('/reviews/:id', perfController.getReviewById);
 router.post('/reviews/:id/self', perfController.submitSelfReview);
-router.post('/reviews/:id/manager', checkPermission(['performance.reviewTeam', 'hr.access']), perfController.submitManagerReview);
-router.post('/reviews/:id/calibrate', checkPermission('performance.calibrate'), perfController.calibrateReview);
-router.post('/reviews/:id/publish', checkPermission('performance.publish'), perfController.publishSingleReview);
+router.post('/reviews/:id/manager', requirePermission(['performance.reviewTeam', 'hr.access']), perfController.submitManagerReview);
+router.post('/reviews/:id/calibrate', requirePermission('performance.calibrate'), perfController.calibrateReview);
+router.post('/reviews/:id/publish', requirePermission('performance.publish'), perfController.publishSingleReview);
 router.post('/reviews/:id/acknowledge', perfController.acknowledgeReview);
 router.post('/reviews/:id/respond', perfController.acknowledgeReview);
-router.post('/reviews/:id/update-rating', checkPermission('performance.calibrate'), perfController.updateRatingPostPublish);
-router.post('/reviews/:id/recommend-pip', checkPermission('hr.access'), perfController.recommendDraftPIP);
+router.post('/reviews/:id/update-rating', requirePermission('performance.calibrate'), perfController.updateRatingPostPublish);
+router.post('/reviews/:id/recommend-pip', requirePermission('hr.access'), perfController.recommendDraftPIP);
 router.get('/reviews/:id/work-context', perfController.getReviewWorkContext);
 
 // 6. 360 Feedback
@@ -56,11 +57,11 @@ router.post('/one-on-ones', perfController.createOneOnOne);
 
 // 8. Continuous Feedback & Kudos
 router.get('/feedback', perfController.listFeedback);
-router.post('/feedback', checkPermission('performance.feedback.give'), perfController.giveFeedback);
+router.post('/feedback', requirePermission('performance.feedback.give'), perfController.giveFeedback);
 
 // 9. Settings & Export
 router.get('/settings', perfController.getSettings);
-router.put('/settings', checkPermission('performance.configure'), perfController.updateSettings);
-router.get('/export', checkPermission('performance.export'), perfController.exportPerformanceData);
+router.put('/settings', requirePermission('performance.configure'), perfController.updateSettings);
+router.get('/export', requirePermission('performance.export'), perfController.exportPerformanceData);
 
 export default router;
