@@ -27,6 +27,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import AutomationBanner from '../../components/attendance/AutomationBanner';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -170,6 +171,7 @@ export const AttendanceCalendar = () => {
     { key: 'LOG_ERROR', label: 'Log Error', bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
     { key: 'HOLIDAY', label: 'Holiday', bg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' },
     { key: 'WEEK_OFF', label: 'Week Off', bg: 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/20' },
+    { key: 'WORKED_WEEK_OFF_OR_HOLIDAY', label: 'Worked Week-off/Holiday', bg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' },
     { key: 'NOT_PA', label: 'NOT P/A', bg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
     { key: 'CHANGED_LOG', label: 'Changed Log', bg: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20' },
     { key: 'REMOTE_WORK', label: 'Remote Work', bg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
@@ -177,6 +179,7 @@ export const AttendanceCalendar = () => {
 
   return (
     <div className="space-y-6">
+      <AutomationBanner />
       {/* 1. Header Toolbar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>

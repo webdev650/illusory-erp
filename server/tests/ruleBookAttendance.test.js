@@ -35,11 +35,13 @@ import {
 import * as requestsController from '../src/controllers/requests.controller.js';
 import * as ruleBookController from '../src/controllers/ruleBookPolicy.controller.js';
 import { handleWorkflowCompletion } from '../src/services/approvalHandlers.js';
+import { runMissingClockOutInspection, runDailyEODReconciliation } from '../src/services/cron.service.js';
+import { sendEmail } from '../src/utils/mailer.js';
 
 describe('OFFICIAL ATTENDANCE & LEAVE RULE BOOK TEST SUITE', () => {
   let testDept, testEmp1, testEmp2, testProbationer;
   let casualLeaveType, annualLeaveType, sickLeaveType, compOffLeaveType;
-  let hrUser, employeeUser;
+  let hrUser, employeeUser, superAdminUser;
 
   const mockRes = () => {
     const res = {};
@@ -174,6 +176,14 @@ describe('OFFICIAL ATTENDANCE & LEAVE RULE BOOK TEST SUITE', () => {
       userRole: 'employee',
       employee: testEmp1,
     };
+
+    superAdminUser = {
+      _id: new mongoose.Types.ObjectId(),
+      email: 'admin@illusorydesignstudios.com',
+      role: 'super_admin',
+      userRole: 'super_admin',
+      employee: testEmp1,
+    };
   });
 
   afterAll(async () => {
@@ -217,12 +227,125 @@ describe('OFFICIAL ATTENDANCE & LEAVE RULE BOOK TEST SUITE', () => {
       await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
     });
 
-    test('Conflict Test: Works 250 minutes (>= 240m) but leaves before 6:00 PM (17:30 IST) -> MUST result in HALF_DAY', async () => {
+    test('Table Case 1: in 10:00 out 18:45 -> LOG_OK', async () => {
+      const dateStr = '2026-03-10'; // Tuesday
+      // 10:00 AM IST = 04:30 UTC, 18:45 IST = 13:15 UTC
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'in',
+        time: new Date(`${dateStr}T04:30:00.000Z`),
+      });
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'out',
+        time: new Date(`${dateStr}T13:15:00.000Z`),
+      });
+
+      const dayStatus = await calculateDayStatus(testEmp1._id, dateStr);
+      expect(dayStatus.status).toBe('LOG_OK');
+      expect(dayStatus.isEarlyExit).toBe(false);
+      expect(dayStatus.isLate).toBe(false);
+
+      await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
+    });
+
+    test('Table Case 2: out 18:44 -> LOG_OK', async () => {
+      const dateStr = '2026-03-10';
+      // in 10:00 AM IST (04:30 UTC), out 18:44 IST (13:14 UTC)
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'in',
+        time: new Date(`${dateStr}T04:30:00.000Z`),
+      });
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'out',
+        time: new Date(`${dateStr}T13:14:00.000Z`),
+      });
+
+      const dayStatus = await calculateDayStatus(testEmp1._id, dateStr);
+      expect(dayStatus.status).toBe('LOG_OK');
+      expect(dayStatus.isEarlyExit).toBe(false);
+
+      await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
+    });
+
+    test('Table Case 3: out 18:35 -> LOG_OK', async () => {
+      const dateStr = '2026-03-10';
+      // in 10:00 AM IST (04:30 UTC), out 18:35 IST (13:05 UTC)
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'in',
+        time: new Date(`${dateStr}T04:30:00.000Z`),
+      });
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'out',
+        time: new Date(`${dateStr}T13:05:00.000Z`),
+      });
+
+      const dayStatus = await calculateDayStatus(testEmp1._id, dateStr);
+      expect(dayStatus.status).toBe('LOG_OK');
+      expect(dayStatus.isEarlyExit).toBe(false);
+
+      await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
+    });
+
+    test('Table Case 4: out 18:15 -> LOG_OK plus EARLY_EXIT chip', async () => {
+      const dateStr = '2026-03-10';
+      // in 10:00 AM IST (04:30 UTC), out 18:15 IST (12:45 UTC)
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'in',
+        time: new Date(`${dateStr}T04:30:00.000Z`),
+      });
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'out',
+        time: new Date(`${dateStr}T12:45:00.000Z`),
+      });
+
+      const dayStatus = await calculateDayStatus(testEmp1._id, dateStr);
+      expect(dayStatus.status).toBe('LOG_OK');
+      expect(dayStatus.isEarlyExit).toBe(true);
+      expect(dayStatus.chips.some((c) => c.key === 'EARLY_EXIT')).toBe(true);
+
+      await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
+    });
+
+    test('Table Case 5: out 17:50 -> HALF_DAY', async () => {
+      const dateStr = '2026-03-10';
+      // in 10:00 AM IST (04:30 UTC), out 17:50 IST (12:20 UTC)
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'in',
+        time: new Date(`${dateStr}T04:30:00.000Z`),
+      });
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'out',
+        time: new Date(`${dateStr}T12:20:00.000Z`),
+      });
+
+      const dayStatus = await calculateDayStatus(testEmp1._id, dateStr);
+      expect(dayStatus.status).toBe('HALF_DAY');
+
+      await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
+    });
+
+    test('Conflict Test: Works 310 min (>= 240m) but leaves before 18:00 (17:30 IST) -> MUST result in HALF_DAY', async () => {
       const dateStr = '2026-03-10'; // Tuesday (Non-holiday)
-      // 11:20 AM IST = 05:50 UTC
-      // 05:30 PM IST = 12:00 UTC
-      // Gross: 370 min, Break: 60 min, Worked: 310 min (well above 240 min)
-      // BUT Clock exit is 17:30 IST (before 18:00 cut-off)
+      // 11:20 AM IST = 05:50 UTC, 17:30 IST = 12:00 UTC
       await AttendanceLog.create({
         employee: testEmp1._id,
         date: dateStr,
@@ -242,33 +365,80 @@ describe('OFFICIAL ATTENDANCE & LEAVE RULE BOOK TEST SUITE', () => {
       await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
     });
 
-    test('Early Exit Boundary: Leaving between 6:00 PM and 6:30 PM (18:15 IST) is recorded as EARLY_EXIT for policy tracking', async () => {
-      const dateStr = '2026-03-04'; // Wednesday
-      // 10:00 AM IST = 04:30 UTC
-      // 06:15 PM IST = 12:45 UTC
+    test('Table Case 6: in 10:20 out 18:45 -> LOG_OK plus one late entry and no half day', async () => {
+      const dateStr = '2026-03-10';
+      // in 10:20 AM IST (04:50 UTC), out 18:45 IST (13:15 UTC)
       await AttendanceLog.create({
         employee: testEmp1._id,
         date: dateStr,
         type: 'in',
-        time: new Date(`${dateStr}T04:30:00.000Z`),
+        time: new Date(`${dateStr}T04:50:00.000Z`),
       });
       await AttendanceLog.create({
         employee: testEmp1._id,
         date: dateStr,
         type: 'out',
-        time: new Date(`${dateStr}T12:45:00.000Z`),
+        time: new Date(`${dateStr}T13:15:00.000Z`),
       });
 
       const dayStatus = await calculateDayStatus(testEmp1._id, dateStr);
-      expect(dayStatus.status).toBe('EARLY_EXIT');
+      expect(dayStatus.status).toBe('LOG_OK');
+      expect(dayStatus.isLate).toBe(true);
+      expect(dayStatus.lateMinutes).toBe(20);
+      expect(dayStatus.status).not.toBe('HALF_DAY');
 
       await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
     });
 
-    test('Normal Exit Window: Leaving between 6:30 PM and 6:45 PM is treated as normal exit', async () => {
-      const dateStr = '2026-03-05'; // Thursday
-      // 10:00 AM IST = 04:30 UTC
-      // 06:35 PM IST = 13:05 UTC (worked: 455 min, >= 240m)
+    test('Undefined Pattern: Arrived after 14:00 (14:15 IST) without approved leave -> LOG_ERROR with needsHrReview flag', async () => {
+      const dateStr = '2026-03-10';
+      // in 14:15 IST (08:45 UTC), out 18:45 IST (13:15 UTC)
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'in',
+        time: new Date(`${dateStr}T08:45:00.000Z`),
+      });
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'out',
+        time: new Date(`${dateStr}T13:15:00.000Z`),
+      });
+
+      const dayStatus = await calculateDayStatus(testEmp1._id, dateStr);
+      expect(dayStatus.status).toBe('LOG_ERROR');
+      expect(dayStatus.needsHrReview).toBe(true);
+      expect(dayStatus.reviewReason).toContain('without approved leave');
+
+      await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
+    });
+
+    test('Holiday Punch: Punching on Holiday (2026-03-03 Holi) -> WORKED_WEEK_OFF_OR_HOLIDAY and overtime = 0', async () => {
+      const dateStr = '2026-03-03'; // Holi
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'in',
+        time: new Date(`${dateStr}T04:30:00.000Z`), // 10:00 AM IST
+      });
+      await AttendanceLog.create({
+        employee: testEmp1._id,
+        date: dateStr,
+        type: 'out',
+        time: new Date(`${dateStr}T13:15:00.000Z`), // 18:45 IST
+      });
+
+      const dayStatus = await calculateDayStatus(testEmp1._id, dateStr);
+      expect(dayStatus.status).toBe('WORKED_WEEK_OFF_OR_HOLIDAY');
+      expect(dayStatus.overtimeMinutes).toBe(0); // Zero automatic overtime
+      expect(dayStatus.chips.some((c) => c.key === 'COMP_OFF_PENDING')).toBe(true);
+
+      await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
+    });
+
+    test('Sunday Punch: Punching on Week-Off (2026-03-08 Sunday) -> WORKED_WEEK_OFF_OR_HOLIDAY and overtime = 0', async () => {
+      const dateStr = '2026-03-08'; // Sunday
       await AttendanceLog.create({
         employee: testEmp1._id,
         date: dateStr,
@@ -279,12 +449,13 @@ describe('OFFICIAL ATTENDANCE & LEAVE RULE BOOK TEST SUITE', () => {
         employee: testEmp1._id,
         date: dateStr,
         type: 'out',
-        time: new Date(`${dateStr}T13:05:00.000Z`),
+        time: new Date(`${dateStr}T13:15:00.000Z`),
       });
 
       const dayStatus = await calculateDayStatus(testEmp1._id, dateStr);
-      // Exit is after 18:30 IST, worked >= 240m
-      expect(['LOG_OK', 'HALF_DAY']).toContain(dayStatus.status);
+      expect(dayStatus.status).toBe('WORKED_WEEK_OFF_OR_HOLIDAY');
+      expect(dayStatus.overtimeMinutes).toBe(0); // Zero automatic overtime
+      expect(dayStatus.chips.some((c) => c.key === 'COMP_OFF_PENDING')).toBe(true);
 
       await AttendanceLog.deleteMany({ employee: testEmp1._id, date: dateStr });
     });
@@ -348,6 +519,7 @@ describe('OFFICIAL ATTENDANCE & LEAVE RULE BOOK TEST SUITE', () => {
 
     test('Late Counter & Deduction Tiers: Entry 1-2 monitoring, 3-4 half-day, 5+ full-day', async () => {
       const policy = await getCompanyPolicy();
+      policy.automationEnabled = true;
 
       // Record 5 late entries
       const dates = ['2026-03-10', '2026-03-11', '2026-03-12', '2026-03-13', '2026-03-14'];
@@ -456,10 +628,17 @@ describe('OFFICIAL ATTENDANCE & LEAVE RULE BOOK TEST SUITE', () => {
       const month = 3;
       await LeaveLedger.deleteMany({ memo: `ACCRUAL_${year}_M${String(month).padStart(2, '0')}` });
 
-      const run1 = await executeMonthlyLeaveAccrual({ year, month });
+      const testPolicy = {
+        automationEnabled: true,
+        accrualStartRule: 'from_joining_month',
+        accrualProrateFirstMonth: true,
+        accrueDuringProbation: false,
+      };
+
+      const run1 = await executeMonthlyLeaveAccrual({ year, month, overridePolicy: testPolicy });
       expect(run1.credited).toBeGreaterThan(0);
 
-      const run2 = await executeMonthlyLeaveAccrual({ year, month });
+      const run2 = await executeMonthlyLeaveAccrual({ year, month, overridePolicy: testPolicy });
       // On second execution, all eligible employees should be skipped as already accrued
       expect(run2.credited).toBe(0);
       expect(run2.skippedAlreadyAccrued).toBeGreaterThan(0);
@@ -646,6 +825,105 @@ describe('OFFICIAL ATTENDANCE & LEAVE RULE BOOK TEST SUITE', () => {
 
       await CompOffRequest.deleteOne({ _id: compReq._id });
       await CompOffCredit.deleteOne({ _id: credit._id });
+    });
+  });
+
+  describe('7. Go-Live Safety Switch & Automation Guard Tests', () => {
+    test('Safety Switch OFF: executeMonthlyLeaveAccrual skips and modifies zero records', async () => {
+      // Ensure database policy has automationEnabled = false
+      const policy = await getCompanyPolicy();
+      policy.automationEnabled = false;
+      await policy.save();
+
+      const res = await executeMonthlyLeaveAccrual({ year: 2026, month: 4 });
+      expect(res.credited).toBe(0);
+      expect(res.skippedAutomationOff).toBe(true);
+      expect(res.reason).toContain('Automation is OFF');
+    });
+
+    test('Safety Switch OFF: syncLatePenaltyForDay returns null and saves zero records', async () => {
+      const policy = await getCompanyPolicy();
+      policy.automationEnabled = false;
+
+      const checkIn = new Date('2026-04-10T05:00:00.000Z');
+      const rec = await syncLatePenaltyForDay(testEmp1._id, '2026-04-10', checkIn, 30, policy);
+      expect(rec).toBeNull();
+
+      const inDb = await LatePenaltyRecord.findOne({ employee: testEmp1._id, dateStr: '2026-04-10' });
+      expect(inDb).toBeNull();
+    });
+
+    test('Safety Switch OFF: runMissingClockOutInspection returns skipped count 0', async () => {
+      const res = await runMissingClockOutInspection();
+      expect(res.skipped).toBe(true);
+      expect(res.count).toBe(0);
+      expect(res.reason).toMatch(/Automation is OFF/i);
+    });
+
+    test('Safety Switch OFF: runDailyEODReconciliation returns skipped count 0', async () => {
+      const res = await runDailyEODReconciliation();
+      expect(res.skipped).toBe(true);
+      expect(res.count).toBe(0);
+      expect(res.reason).toMatch(/Automation is OFF/i);
+    });
+
+    test('Safety Switch OFF: Outbound email dispatcher skips email sending', async () => {
+      const res = await sendEmail({
+        to: 'test@illusorydesignstudios.com',
+        subject: 'Go-Live Safety Test',
+        text: 'Testing safety switch outbound block',
+      });
+      expect(res.skipped).toBe(true);
+      expect(res.reason).toMatch(/Automation is OFF/i);
+    });
+
+    test('Master Switch API: Rejects non-super-admin user', async () => {
+      const req = {
+        user: hrUser, // HR user, not super_admin
+        userRole: 'hr',
+        body: { enabled: true, confirmationPhrase: 'ENABLE_AUTOMATION' },
+      };
+      const res = mockRes();
+
+      await ruleBookController.toggleAutomationSwitch(req, res, (e) => { throw e; });
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.data.message).toMatch(/Only Super Admin/i);
+    });
+
+    test('Master Switch API: Rejects toggle without exact confirmation text', async () => {
+      const req = {
+        user: superAdminUser,
+        userRole: 'super_admin',
+        body: { enabled: true, confirmationPhrase: 'WRONG_PHRASE' },
+      };
+      const res = mockRes();
+
+      await ruleBookController.toggleAutomationSwitch(req, res, (e) => { throw e; });
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.data.message).toMatch(/ENABLE_AUTOMATION/);
+    });
+
+    test('Master Switch API: Successfully toggles to ON when confirmed by super_admin', async () => {
+      const req = {
+        user: superAdminUser,
+        userRole: 'super_admin',
+        body: { enabled: true, confirmationPhrase: 'ENABLE_AUTOMATION' },
+      };
+      const res = mockRes();
+
+      await ruleBookController.toggleAutomationSwitch(req, res, (e) => { throw e; });
+      expect(res.data.success).toBe(true);
+      expect(res.data.data.automationEnabled).toBe(true);
+
+      // Re-disable to restore safety default OFF
+      const reqOff = {
+        user: superAdminUser,
+        userRole: 'super_admin',
+        body: { enabled: false },
+      };
+      const resOff = mockRes();
+      await ruleBookController.toggleAutomationSwitch(reqOff, resOff, (e) => { throw e; });
+      expect(resOff.data.data.automationEnabled).toBe(false);
     });
   });
 });

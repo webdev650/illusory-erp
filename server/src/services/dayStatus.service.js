@@ -109,6 +109,15 @@ export const STATUS_CONFIG = {
     text: '#115E59',
     border: '#99F6E4',
   },
+  WORKED_WEEK_OFF_OR_HOLIDAY: {
+    key: 'WORKED_WEEK_OFF_OR_HOLIDAY',
+    label: 'Worked on week-off or holiday',
+    color: '#8B5CF6', // Purple 500
+    bg: '#F5F3FF',
+    text: '#5B21B6',
+    border: '#DDD6FE',
+    note: 'Comp-off needs an approved request. Credit is created only by the comp-off flow.',
+  },
   COMPANY_OUTSIDE_LEAVE: {
     key: 'COMPANY_OUTSIDE_LEAVE',
     label: 'Company Outside Leave',
@@ -229,9 +238,14 @@ export const getCompanyPolicy = async () => {
       annualLeaveMaxCarryDays: 4,
       casualLeaveForwardMode: 'lapse',
       attendanceSource: 'web',
+      automationEnabled: false,
       unverifiedSettings: DEFAULT_UNVERIFIED_SETTINGS,
       isDefault: true,
     });
+  }
+  if (policy && policy.automationEnabled === undefined) {
+    policy.automationEnabled = false;
+    await policy.save();
   }
   return policy;
 };
@@ -417,15 +431,30 @@ export const calculateDayStatus = async (employeeId, dateInput, options = {}) =>
   }
 
   // Overtime calculation
+  // RULE BOOK & USER REQUIREMENT: Remove automatic overtime credit on holiday and week-off!
+  // Working on holiday or Sunday requires an approved comp-off request; credit is NOT automatic.
   const targetWorkingMinutes = shift ? shift.workingMinutes || 465 : 465;
   if (isWeekOff || holiday) {
-    overtimeMinutes = workedMinutes;
+    overtimeMinutes = 0; // ZERO automatic overtime
   } else if (workedMinutes > targetWorkingMinutes) {
     overtimeMinutes = workedMinutes - targetWorkingMinutes;
   }
 
   // --- DETERMINE STATUS VIA STRICT PRECEDENCE ---
   let statusKey = 'NOT_PA';
+  let isEarlyExit = false;
+  let needsHrReview = false;
+  let reviewReason = '';
+
+  const cutoffs = policy.clockCutoffs || {};
+  const [hdH, hdM] = (cutoffs.earlyDepartureHalfDayCutoff || '18:00').split(':').map(Number);
+  const halfDayExitThreshold = hdH + (hdM || 0) / 60; // 18.0 (6:00 PM)
+
+  const [eeH, eeM] = (cutoffs.earlyExitWindowEnd || '18:30').split(':').map(Number);
+  const earlyExitThreshold = eeH + (eeM || 0) / 60; // 18.5 (6:30 PM)
+
+  const [unInH, unInM] = (cutoffs.undefinedInAfter || '14:00').split(':').map(Number);
+  const undefinedInThreshold = unInH + (unInM || 0) / 60; // 14.0 (2:00 PM)
 
   if (isFuture) {
     if (holiday) {
@@ -440,20 +469,20 @@ export const calculateDayStatus = async (employeeId, dateInput, options = {}) =>
       statusKey = 'UPCOMING';
     }
   } else if (leave && !leave.isHalfDay) {
-    // Level 1: Full-Day Approved Leave
+    // Level 1: Full-Day Approved Leave (always overrides punches)
     statusKey = leave.leaveType?.paid === false ? 'COMPANY_OUTSIDE_LEAVE' : 'LEAVE';
     workedMinutes = 0;
   } else if (holiday) {
-    // Level 2: Holiday
-    if (activeLogs.length > 0 && workedMinutes >= (policy.halfDayMinMinutes || 240)) {
-      statusKey = 'LOG_OK';
+    // Level 2: Holiday (No automatic overtime; requires comp-off request)
+    if (activeLogs.length > 0) {
+      statusKey = 'WORKED_WEEK_OFF_OR_HOLIDAY';
     } else {
       statusKey = holiday.type === 'restricted' ? 'RESTRICTED_DAY' : 'HOLIDAY';
     }
   } else if (isWeekOff) {
-    // Level 3: Week Off (Sunday)
-    if (activeLogs.length > 0 && workedMinutes >= (policy.halfDayMinMinutes || 240)) {
-      statusKey = 'LOG_OK';
+    // Level 3: Week Off / Sunday (No automatic overtime; requires comp-off request)
+    if (activeLogs.length > 0) {
+      statusKey = 'WORKED_WEEK_OFF_OR_HOLIDAY';
     } else {
       statusKey = 'WEEK_OFF';
     }
@@ -484,21 +513,29 @@ export const calculateDayStatus = async (employeeId, dateInput, options = {}) =>
       statusKey = 'DELETED_LOG';
     } else if (leave && leave.status === 'unauthorized') {
       statusKey = 'UNAUTHORIZED_ABSENCE';
-    } else if (isPast) {
-      statusKey = 'NOT_PA';
     } else {
       statusKey = 'NOT_PA';
     }
   } else {
     // Level 6: Regular Working Day with active punches & clock cut-offs
+    // Rules:
+    // - Leaves before 18:00 -> HALF_DAY
+    // - Leaves 18:00 to 18:30 -> LOG_OK plus EARLY_EXIT chip (tracking only)
+    // - Leaves 18:30 or later -> LOG_OK
+    // - Late arrival NEVER changes the day to half day by itself (handled by monthly counter)
+    // - Missing punch-out or undefined pattern (e.g. in after 14:00 with no leave) -> LOG_ERROR / needs HR review
     if (hasMissingClockOut && isPast) {
-      statusKey = 'LOG_ERROR'; // Past date with missing out
+      statusKey = 'LOG_ERROR';
+      needsHrReview = true;
+      reviewReason = 'Missing clock-out punch on past date';
     } else if (hasMissingClockOut && isToday) {
       const now = new Date();
       const istHours = (now.getUTCHours() + 5.5) % 24;
       const [acH, acM] = (policy.autoCloseMissingClockOutAt || '19:00').split(':').map(Number);
-      if (istHours >= acH + acM / 60) {
+      if (istHours >= acH + (acM || 0) / 60) {
         statusKey = 'LOG_ERROR';
+        needsHrReview = true;
+        reviewReason = 'Missing clock-out past 19:00 IST';
       } else if (isCurrentlyOnBreak) {
         statusKey = 'BREAK_LOG';
       } else {
@@ -506,25 +543,71 @@ export const calculateDayStatus = async (employeeId, dateInput, options = {}) =>
       }
     } else if (isCurrentlyOnBreak) {
       statusKey = 'BREAK_LOG';
-    } else if (hasManualOrRegularized && workedMinutes >= (policy.fullDayMinMinutes || 465)) {
-      statusKey = 'CHANGED_LOG';
-    } else if (lastOutISTHour !== null && lastOutISTHour < 18.0) {
-      // RULE BOOK CUT-OFF: Leaving before 6:00 PM (18:00 IST) without approved leave counts as a HALF DAY
-      // (Even if workedMinutes >= 240, e.g. 250 minutes worked, clock exit before 18:00 -> HALF_DAY)
+    } else if (firstInISTHour !== null && firstInISTHour > undefinedInThreshold) {
+      // Undefined Rule Book pattern: Arrived after 14:00 without approved leave
+      // Flag as LOG_ERROR / needs HR review (never an automatic deduction)
+      statusKey = 'LOG_ERROR';
+      needsHrReview = true;
+      reviewReason = `Arrived after ${cutoffs.undefinedInAfter || '14:00'} without approved leave`;
+    } else if (lastOutISTHour !== null && lastOutISTHour < halfDayExitThreshold) {
+      // Leaves before 18:00 -> HALF_DAY
       statusKey = 'HALF_DAY';
-    } else if (lastOutISTHour !== null && lastOutISTHour >= 18.0 && lastOutISTHour < 18.5) {
-      // RULE BOOK CUT-OFF: Leaving between 6:00 PM and 6:30 PM is recorded as "Early exit" for policy tracking
-      statusKey = 'EARLY_EXIT';
-    } else if (workedMinutes < (policy.halfDayMinMinutes || 240)) {
-      statusKey = 'LOG_ERROR'; // Under 240 minutes minimum without approved leave
-    } else if (workedMinutes < (policy.fullDayMinMinutes || 465)) {
-      statusKey = 'HALF_DAY';
-    } else {
+      isEarlyExit = false;
+    } else if (lastOutISTHour !== null && lastOutISTHour >= halfDayExitThreshold && lastOutISTHour < earlyExitThreshold) {
+      // Leaves 18:00 to 18:30 -> LOG_OK plus EARLY_EXIT chip (tracking only)
       statusKey = hasManualOrRegularized ? 'CHANGED_LOG' : 'LOG_OK';
+      isEarlyExit = true;
+    } else {
+      // Leaves 18:30 or later -> LOG_OK (Late arrival never changes day to half day by itself)
+      statusKey = hasManualOrRegularized ? 'CHANGED_LOG' : 'LOG_OK';
+      isEarlyExit = false;
     }
   }
 
   const meta = STATUS_CONFIG[statusKey] || STATUS_CONFIG.NOT_PA;
+
+  // Build chips
+  const chips = [];
+  if (isEarlyExit) {
+    chips.push({
+      key: 'EARLY_EXIT',
+      label: 'Early Exit',
+      color: '#F97316',
+      bg: '#FFF7ED',
+      text: '#9A3412',
+      border: '#FDBA74',
+    });
+  }
+  if (lateMinutes > 0) {
+    chips.push({
+      key: 'LATE',
+      label: `Late (${lateMinutes}m)`,
+      color: '#F59E0B',
+      bg: '#FFFBEB',
+      text: '#92400E',
+      border: '#FDE68A',
+    });
+  }
+  if (needsHrReview) {
+    chips.push({
+      key: 'NEEDS_HR_REVIEW',
+      label: 'Needs HR Review',
+      color: '#EF4444',
+      bg: '#FEF2F2',
+      text: '#991B1B',
+      border: '#FECACA',
+    });
+  }
+  if (statusKey === 'WORKED_WEEK_OFF_OR_HOLIDAY') {
+    chips.push({
+      key: 'COMP_OFF_PENDING',
+      label: 'Comp-Off Request Needed',
+      color: '#8B5CF6',
+      bg: '#F5F3FF',
+      text: '#5B21B6',
+      border: '#DDD6FE',
+    });
+  }
 
   // Check critical date warning
   const criticalDateObj = await CriticalDate.findOne({
@@ -543,9 +626,13 @@ export const calculateDayStatus = async (employeeId, dateInput, options = {}) =>
     lateMinutes,
     breakMinutes,
     overtimeMinutes,
+    isEarlyExit,
+    isLate: lateMinutes > 0,
+    needsHrReview,
+    reviewReason,
+    chips,
     shift: shift ? { id: shift._id, name: shift.name, startTime: shift.startTime, endTime: shift.endTime, workingMinutes: shift.workingMinutes } : null,
     logs: activeLogs,
-    isLate: lateMinutes > 0,
     hasApprovedExcuse,
     criticalWarning: criticalDateObj ? `Critical Date Scheduled: ${criticalDateObj.title} (${criticalDateObj.type})` : null,
     linked: {
@@ -590,6 +677,8 @@ export const getEmployeeMonthlyLateCount = async (employeeId, year, month) => {
  */
 export const syncLatePenaltyForDay = async (employeeId, dateStr, checkInTime, lateMinutes, policy) => {
   if (!lateMinutes || lateMinutes <= 0) return null;
+  // Go-live safety switch: do NOT generate or save late penalties while automation is OFF
+  if (!policy || policy.automationEnabled === false) return null;
 
   const [yearStr, monthStr] = dateStr.split('-');
   const year = parseInt(yearStr, 10);

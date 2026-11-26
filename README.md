@@ -294,3 +294,36 @@ During final migration cutover from BizCompass to Illusory ERP:
      - `"none"` (Default): Stored in integer minutes; displayed as exact decimals (e.g. 3.33d, 2.92d).
      - `"nearest_half"`: Stored in integer minutes; rounded to the nearest 0.5 day (e.g. 2.92d &rarr; 3.0d, 3.33d &rarr; 3.5d).
      - `"round_down_half"`: Floor rounding to the nearest 0.5 day.
+
+
+---
+
+## 🛡️ Official Attendance & Leave Rule Book Alignment & Go-Live Safety Switch
+
+### 1. Day Status Calculation & Clock Cut-Off Precedence
+Daily attendance status is evaluated strictly via punch presence and clock cut-off boundaries, eliminating the previous 465-minute threshold penalty:
+- **Leaves before 18:00 IST** &rarr; `HALF_DAY` (mandatory minimum cutoff).
+- **Leaves between 18:00 and 18:30 IST** &rarr; `LOG_OK` with `EARLY_EXIT` tracking chip.
+- **Leaves 18:30 IST or later** &rarr; `LOG_OK` (clean full-day exit).
+- **Late Arrival (e.g. In 10:20, Out 18:45)** &rarr; `LOG_OK` with `LATE (20m)` chip; handled **exclusively** by the monthly late-entry counter (never marks a day half-day by itself).
+- **Undefined Patterns (e.g. In after 14:00 without approved leave)** &rarr; `LOG_ERROR` with `needsHrReview = true` (never an automatic deduction).
+
+#### Precedence Hierarchy (Highest to Lowest):
+1. **Approved Full-Day Leave**: Always overrides punches (`LEAVE` / `COMPANY_OUTSIDE_LEAVE`).
+2. **Studio Holiday**: Punches set status to `WORKED_WEEK_OFF_OR_HOLIDAY` with `overtimeMinutes = 0`.
+3. **Week-Off / Sunday**: Punches set status to `WORKED_WEEK_OFF_OR_HOLIDAY` with `overtimeMinutes = 0`.
+4. **Approved Remote Work**: `REMOTE_WORK` (WFH credits 465 mins).
+5. **Approved Half-Day Leave**: Evaluated with 14:00 (2:00 PM IST) cut-offs (`HALF_DAY` or `LEAVE` if cut-offs missed).
+6. **Regular Working Day**: Clock cut-offs applied (18:00, 18:30, missing punches).
+7. **No Punches**: `NOT_PA` (Not Present/Absent) or `UNAUTHORIZED_ABSENCE`.
+
+### 2. Holiday and Week-Off Work (Zero Automatic Overtime)
+- Automatic overtime credit has been removed for punches on Sundays and Studio Holidays.
+- The day resolves to **"Worked on week-off or holiday"** (`WORKED_WEEK_OFF_OR_HOLIDAY`) with a visual `Comp-Off Request Needed` chip.
+- Earning compensatory time requires submitting a formal Comp-Off Request (`/hrms/attendance/comp-off`), subject to approval.
+
+### 3. Go-Live Master Safety Switch (`automationEnabled: false`)
+- **Default State**: OFF (`false`). Displays yellow warning banner `"Automation is OFF (not live)"` across all Attendance screens and Policy Confirmation.
+- **Protected Operations**: While OFF, all automated background crons, monthly accruals, missing clock-out auto-closures, EOD reconciliations, late penalty deductions, escalation notifications, and outbound SMTP emails are completely suspended.
+- **Safety Toggle**: Restricted strictly to `super_admin` role, requiring explicit typed confirmation phrase `'ENABLE_AUTOMATION'`. All toggle events are permanently recorded in `AuditLog`.
+- **Simulation Hub**: Allows HR & Super Admin to run safe dry-run preview simulations (`Monthly Accrual`, `Missing Clock-Out (19:00)`, `EOD Absenteeism (23:59)`, and `Late Penalties`) without altering any live database records.

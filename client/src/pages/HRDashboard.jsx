@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { PageHeader, Button } from '../components/ui';
+import AutomationBanner from '../components/attendance/AutomationBanner';
 import { AttendanceTrendChart } from '../components/AttendanceTrendChart';
 import {
   UserCheck,
@@ -245,6 +246,7 @@ export const HRDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <AutomationBanner />
       {/* Page Header */}
       <PageHeader
         title="HR Operations Hub"

@@ -165,6 +165,21 @@ const attendancePolicySchema = new mongoose.Schema(
       earlyExitWindowEnd: { type: String, default: '18:30' }, // 6:30 PM (recorded as Early Exit)
       normalExitWindowStart: { type: String, default: '18:30' }, // 6:30 PM - 6:45 PM normal exit
       shiftEndTime: { type: String, default: '18:45' }, // 6:45 PM
+      undefinedInAfter: { type: String, default: '14:00' }, // Undefined pattern: clock-in after 14:00 without approved leave
+    },
+    // Go-live safety switch
+    automationEnabled: {
+      type: Boolean,
+      default: false, // Default OFF until Super Admin confirms go-live
+    },
+    automationToggledAt: {
+      type: Date,
+      default: null,
+    },
+    automationToggledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
     },
     // Partial day feature flag
     partialDayEnabled: {

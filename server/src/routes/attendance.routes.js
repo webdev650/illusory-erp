@@ -21,6 +21,12 @@ import {
   deleteCriticalDate,
   getUnauthorizedAbsences,
   actOnUnauthorizedAbsence,
+  getAutomationStatus,
+  toggleAutomationSwitch,
+  previewMonthlyAccrual,
+  previewMissingClockOut,
+  previewEodNotPa,
+  previewLatePenalties,
 } from '../controllers/ruleBookPolicy.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
@@ -80,6 +86,14 @@ router.delete('/critical-dates/:id', requirePermission(['attendance.manage', 'hr
 // Unauthorized Absences
 router.get('/unauthorized-absences', getUnauthorizedAbsences);
 router.post('/unauthorized-absences/:id/action', requirePermission(['attendance.manage', 'hr.access']), actOnUnauthorizedAbsence);
+
+// Go-Live Master Safety Switch & Previews
+router.get('/automation/status', getAutomationStatus);
+router.post('/automation/toggle', toggleAutomationSwitch);
+router.get('/automation/preview/monthly-accrual', previewMonthlyAccrual);
+router.get('/automation/preview/missing-clockout', previewMissingClockOut);
+router.get('/automation/preview/eod-not-pa', previewEodNotPa);
+router.get('/automation/preview/late-penalties', previewLatePenalties);
 
 // Exporting
 router.get('/export', exportAttendance);

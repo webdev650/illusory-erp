@@ -37,6 +37,18 @@ const getTransporter = () => {
  * @param {Array<object>} [options.attachments] - Optional attachments
  */
 export const sendEmail = async ({ to, subject, text, html, attachments = [] }) => {
+  // Go-live safety switch: When automationEnabled is false, do not send outbound emails
+  try {
+    const { getCompanyPolicy } = await import('./dayStatus.service.js');
+    const policy = await getCompanyPolicy();
+    if (!policy || policy.automationEnabled === false) {
+      logger.info({ to, subject }, 'Go-live safety switch is OFF; outbound email suppressed.');
+      return { success: true, skipped: true, reason: 'Automation is OFF (Go-live safety switch is disabled)' };
+    }
+  } catch (err) {
+    return { success: true, skipped: true, reason: 'Automation check suppressed email' };
+  }
+
   const mailer = getTransporter();
 
   if (!mailer) {

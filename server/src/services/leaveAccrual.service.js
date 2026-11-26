@@ -109,8 +109,23 @@ export const executeMonthlyLeaveAccrual = async ({
   year = new Date().getFullYear(),
   month = new Date().getMonth() + 1,
   overridePolicy = null,
+  preview = false,
 } = {}) => {
   const policy = overridePolicy || (await getCompanyPolicy());
+
+  // Go-live safety switch: When automationEnabled is false, do not execute real accruals
+  if (!policy.automationEnabled && !preview) {
+    return {
+      year,
+      month,
+      credited: 0,
+      skippedAlreadyAccrued: 0,
+      ineligible: 0,
+      skippedAutomationOff: true,
+      reason: 'Automation is OFF (Go-live safety switch is disabled)',
+      details: [],
+    };
+  }
 
   // Find or resolve Policy Year
   let policyYear = await LeavePolicyYear.findOne({
@@ -196,6 +211,19 @@ export const executeMonthlyLeaveAccrual = async ({
       // 1 day = 465 minutes (Rule Book standard shift)
       const creditDays = 1;
       const creditMinutes = 465;
+
+      if (preview) {
+        summary.credited++;
+        summary.details.push({
+          employee: emp.employeeId,
+          employeeName: `${emp.personal?.firstName || ''} ${emp.personal?.lastName || ''}`.trim(),
+          leaveType: lt.code,
+          status: 'would_credit',
+          days: creditDays,
+          minutes: creditMinutes,
+        });
+        continue;
+      }
 
       // Update or create LeaveBalance
       let balance = await LeaveBalance.findOne({

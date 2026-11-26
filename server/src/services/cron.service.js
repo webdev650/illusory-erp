@@ -13,9 +13,130 @@ import CompOffCredit from '../models/CompOffCredit.js';
 import ApprovalRequest from '../models/ApprovalRequest.js';
 import User from '../models/User.js';
 import { normalizeToKolkataMidnight } from '../utils/dateUtils.js';
-import { toISTDateString } from './dayStatus.service.js';
+import { toISTDateString, getCompanyPolicy } from './dayStatus.service.js';
 import { getWeekBounds } from './activity.service.js';
 import { notifyEmployee } from './notification.service.js';
+
+/**
+ * 0. Missing Clock-Out Inspection Handler (Runs 19:00 IST or Preview)
+ */
+export const runMissingClockOutInspection = async ({ preview = false } = {}) => {
+  const policy = await getCompanyPolicy();
+  if (!policy?.automationEnabled && !preview) {
+    return { skipped: true, reason: 'Automation is OFF', count: 0, employees: [] };
+  }
+
+  const todayIST = toISTDateString(new Date());
+  const activeEmployees = await Employee.find({
+    status: 'active',
+    isDeleted: false,
+  }).populate('employment.reportingManager');
+
+  const missingList = [];
+  for (const emp of activeEmployees) {
+    const logs = await AttendanceLog.find({
+      employee: emp._id,
+      date: todayIST,
+      isDeleted: false,
+    });
+
+    const hasIn = logs.some((l) => l.type === 'in');
+    const hasOut = logs.some((l) => l.type === 'out');
+
+    if (hasIn && !hasOut) {
+      missingList.push({
+        id: emp._id,
+        employeeId: emp.employeeId,
+        name: `${emp.personal?.firstName || ''} ${emp.personal?.lastName || ''}`.trim(),
+        department: emp.employment?.department,
+        manager: emp.employment?.reportingManager?.personal?.firstName,
+      });
+
+      if (!preview) {
+        const notifPayload = {
+          title: 'Attendance Alert: Missing Clock-Out',
+          message: `You clocked in today (${todayIST}) but haven't clocked out. Please clock out or request log regularization.`,
+          type: 'ATTENDANCE_REGULARIZATION',
+          actionUrl: `/hrms/attendance/regularization?date=${todayIST}`,
+        };
+        await notifyEmployee(emp._id, notifPayload);
+
+        if (emp.employment?.reportingManager?._id) {
+          await notifyEmployee(emp.employment.reportingManager._id, {
+            title: `Team Attendance Alert: ${emp.personal?.firstName} ${emp.personal?.lastName}`,
+            message: `${emp.personal?.firstName} clocked in today (${todayIST}) with no clock-out recorded by 19:00 IST.`,
+            type: 'ATTENDANCE_REGULARIZATION',
+            actionUrl: `/hrms/attendance/manage-logs?employeeId=${emp._id}`,
+          });
+        }
+      }
+    }
+  }
+
+  return { preview, count: missingList.length, employees: missingList };
+};
+
+/**
+ * 1. Daily Attendance EOD Reconciliation Handler (Runs 23:59 IST or Preview)
+ */
+export const runDailyEODReconciliation = async ({ preview = false, targetDate = null } = {}) => {
+  const policy = await getCompanyPolicy();
+  if (!policy?.automationEnabled && !preview) {
+    return { skipped: true, reason: 'Automation is OFF', count: 0, employees: [] };
+  }
+
+  const today = targetDate ? normalizeToKolkataMidnight(new Date(targetDate)) : normalizeToKolkataMidnight(new Date());
+  const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return { preview, skipped: true, reason: 'Weekend detected, skipping auto-absentee job.', count: 0, employees: [] };
+  }
+
+  const isHoliday = await Holiday.findOne({
+    date: {
+      $gte: today,
+      $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+    },
+  });
+
+  if (isHoliday) {
+    return { preview, skipped: true, reason: `Declared holiday (${isHoliday.name}), skipping absentee job.`, count: 0, employees: [] };
+  }
+
+  const activeEmployees = await Employee.find({
+    status: 'active',
+    isDeleted: false,
+  }).select('_id employeeId personal employment');
+
+  const unrecordedList = [];
+  for (const emp of activeEmployees) {
+    const record = await Attendance.findOne({
+      employee: emp._id,
+      date: today,
+    });
+
+    if (!record) {
+      unrecordedList.push({
+        id: emp._id,
+        employeeId: emp.employeeId,
+        name: `${emp.personal?.firstName || ''} ${emp.personal?.lastName || ''}`.trim(),
+        department: emp.employment?.department,
+      });
+
+      if (!preview) {
+        await Attendance.create({
+          employee: emp._id,
+          date: today,
+          status: 'absent',
+          note: 'Auto-marked absent by system EOD check',
+          source: 'manual',
+        });
+      }
+    }
+  }
+
+  return { preview, count: unrecordedList.length, employees: unrecordedList };
+};
 
 export const initCronJobs = () => {
   // 0. Run daily at 19:00 Asia/Kolkata: Missing Clock-Out Auto-Alert
@@ -24,44 +145,12 @@ export const initCronJobs = () => {
     async () => {
       console.log('⏰ [Cron] Running 19:00 IST Missing Clock-Out inspection...');
       try {
-        const todayIST = toISTDateString(new Date());
-        const activeEmployees = await Employee.find({
-          status: 'active',
-          isDeleted: false,
-        }).populate('employment.reportingManager');
-
-        for (const emp of activeEmployees) {
-          const logs = await AttendanceLog.find({
-            employee: emp._id,
-            date: todayIST,
-            isDeleted: false,
-          });
-
-          const hasIn = logs.some((l) => l.type === 'in');
-          const hasOut = logs.some((l) => l.type === 'out');
-
-          if (hasIn && !hasOut) {
-            // Missing clock-out detected
-            const notifPayload = {
-              title: 'Attendance Alert: Missing Clock-Out',
-              message: `You clocked in today (${todayIST}) but haven't clocked out. Please clock out or request log regularization.`,
-              type: 'ATTENDANCE_REGULARIZATION',
-              actionUrl: `/hrms/attendance/regularization?date=${todayIST}`,
-            };
-
-            await notifyEmployee(emp._id, notifPayload);
-
-            // Also alert reporting manager if present
-            if (emp.employment?.reportingManager?._id) {
-              await notifyEmployee(emp.employment.reportingManager._id, {
-                title: `Team Attendance Alert: ${emp.personal?.firstName} ${emp.personal?.lastName}`,
-                message: `${emp.personal?.firstName} clocked in today (${todayIST}) with no clock-out recorded by 19:00 IST.`,
-                type: 'ATTENDANCE_REGULARIZATION',
-                actionUrl: `/hrms/attendance/manage-logs?employeeId=${emp._id}`,
-              });
-            }
-          }
+        const policy = await getCompanyPolicy();
+        if (!policy?.automationEnabled) {
+          console.log('⏸️ [Automation OFF] Skipping 19:00 clock-out inspection (safety switch disabled).');
+          return;
         }
+        await runMissingClockOutInspection({ preview: false });
       } catch (err) {
         console.error('❌ [Cron Error] 19:00 IST missing clock-out job failed:', err.message);
       }
@@ -75,54 +164,12 @@ export const initCronJobs = () => {
     async () => {
       console.log('⏰ [Cron] Running daily attendance EOD reconciliation...');
       try {
-        const today = normalizeToKolkataMidnight(new Date());
-        const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
-
-        // Skip weekends
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-          console.log('⏰ [Cron] Weekend detected, skipping auto-absentee job.');
+        const policy = await getCompanyPolicy();
+        if (!policy?.automationEnabled) {
+          console.log('⏸️ [Automation OFF] Skipping 23:59 EOD reconciliation (safety switch disabled).');
           return;
         }
-
-        // Check if today was a holiday
-        const isHoliday = await Holiday.findOne({
-          date: {
-            $gte: today,
-            $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000),
-          },
-        });
-
-        if (isHoliday) {
-          console.log(`⏰ [Cron] Today is a declared holiday (${isHoliday.name}), skipping absentee job.`);
-          return;
-        }
-
-        const activeEmployees = await Employee.find({
-          status: 'active',
-          isDeleted: false,
-        }).select('_id');
-
-        let absentCount = 0;
-        for (const emp of activeEmployees) {
-          const record = await Attendance.findOne({
-            employee: emp._id,
-            date: today,
-          });
-
-          // If no record exists, mark as absent
-          if (!record) {
-            await Attendance.create({
-              employee: emp._id,
-              date: today,
-              status: 'absent',
-              note: 'Auto-marked absent by system EOD check',
-              source: 'manual',
-            });
-            absentCount += 1;
-          }
-        }
-
-        console.log(`✅ [Cron] Daily attendance complete. ${absentCount} unrecorded employees marked absent.`);
+        await runDailyEODReconciliation({ preview: false });
       } catch (err) {
         console.error('❌ [Cron Error] Daily attendance job failed:', err.message);
       }
@@ -138,6 +185,11 @@ export const initCronJobs = () => {
     async () => {
       console.log('⏰ [Cron] Running daily 9:00 AM task deadline reminders...');
       try {
+        const policy = await getCompanyPolicy();
+        if (!policy?.automationEnabled) {
+          console.log('⏸️ [Automation OFF] Skipping task deadline reminders.');
+          return;
+        }
         const todayMidnight = normalizeToKolkataMidnight(new Date());
         const tomorrowMidnight = new Date(todayMidnight.getTime() + 24 * 60 * 60 * 1000);
         const dayAfterTomorrow = new Date(todayMidnight.getTime() + 48 * 60 * 60 * 1000);
@@ -194,6 +246,11 @@ export const initCronJobs = () => {
     async () => {
       console.log('⏰ [Cron] Running Friday 5:00 PM timesheet submission reminder...');
       try {
+        const policy = await getCompanyPolicy();
+        if (!policy?.automationEnabled) {
+          console.log('⏸️ [Automation OFF] Skipping Friday timesheet reminders.');
+          return;
+        }
         const { weekStart } = getWeekBounds();
         const activeEmployees = await Employee.find({ status: 'active', isDeleted: false }).select('_id');
 
@@ -231,6 +288,11 @@ export const initCronJobs = () => {
     async () => {
       console.log('⏰ [Cron] Running Monday 10:00 AM pending timesheets approver reminder...');
       try {
+        const policy = await getCompanyPolicy();
+        if (!policy?.automationEnabled) {
+          console.log('⏸️ [Automation OFF] Skipping Monday approver reminders.');
+          return;
+        }
         const pendingTimesheets = await Timesheet.find({ status: 'submitted' })
           .populate('employee', 'personal.firstName personal.lastName employment.reportingManager')
           .lean();
@@ -329,6 +391,11 @@ export const initCronJobs = () => {
     async () => {
       console.log('⏰ [Cron] Running 01:00 IST Comp-Off credit expiry & warning sweep...');
       try {
+        const policy = await getCompanyPolicy();
+        if (!policy?.automationEnabled) {
+          console.log('⏸️ [Automation OFF] Skipping comp-off expiry sweep & alerts.');
+          return;
+        }
         const now = new Date();
         const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -373,6 +440,11 @@ export const initCronJobs = () => {
     async () => {
       console.log('⏰ [Cron] Running 09:30 IST 2-day pending approval reminders...');
       try {
+        const policy = await getCompanyPolicy();
+        if (!policy?.automationEnabled) {
+          console.log('⏸️ [Automation OFF] Skipping approver 2-day reminders.');
+          return;
+        }
         const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
         const overdueRequests = await ApprovalRequest.find({
           status: 'pending',
@@ -423,6 +495,11 @@ export const initCronJobs = () => {
     async () => {
       console.log('⏰ [Cron] Running monthly leave accrual at 00:10 IST...');
       try {
+        const policy = await getCompanyPolicy();
+        if (!policy?.automationEnabled) {
+          console.log('⏸️ [Automation OFF] Skipping monthly leave accrual cron.');
+          return;
+        }
         const { executeMonthlyLeaveAccrual } = await import('./leaveAccrual.service.js');
         const now = new Date();
         const res = await executeMonthlyLeaveAccrual({

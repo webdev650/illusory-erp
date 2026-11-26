@@ -289,3 +289,163 @@ export const actOnUnauthorizedAbsence = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * 8. GET /api/v1/attendance/automation/status
+ * Get the current Go-Live safety switch status
+ */
+export const getAutomationStatus = async (req, res, next) => {
+  try {
+    const policy = await getCompanyPolicy();
+    return sendSuccess(
+      res,
+      {
+        automationEnabled: !!policy.automationEnabled,
+        automationToggledAt: policy.automationToggledAt,
+        automationToggledBy: policy.automationToggledBy,
+      },
+      'Automation switch status retrieved'
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * 9. POST /api/v1/attendance/automation/toggle
+ * Super Admin only: Toggle go-live safety switch (requires typed confirmation phrase 'ENABLE_AUTOMATION')
+ */
+export const toggleAutomationSwitch = async (req, res, next) => {
+  try {
+    const userRole = req.userRole || req.user?.role || req.user?.userRole;
+    if (userRole !== 'super_admin') {
+      return sendError(res, 'Access denied: Only Super Admin can toggle the Go-Live master automation switch', 403);
+    }
+
+    const { enabled } = req.body;
+    const confirmation = req.body.confirmationPhrase || req.body.confirmationText;
+
+    if (enabled === true && confirmation !== 'ENABLE_AUTOMATION') {
+      return sendError(res, "Typed confirmation phrase must be exactly 'ENABLE_AUTOMATION'", 400);
+    }
+
+    const policy = await getCompanyPolicy();
+    const prevValue = policy.automationEnabled;
+    policy.automationEnabled = !!enabled;
+    policy.automationToggledAt = new Date();
+    policy.automationToggledBy = req.user._id;
+
+    await policy.save();
+
+    await logAudit({
+      req,
+      action: enabled ? 'ENABLE_AUTOMATION_SWITCH' : 'DISABLE_AUTOMATION_SWITCH',
+      entity: 'AttendancePolicy',
+      entityId: policy._id,
+      changes: {
+        previous: prevValue,
+        current: policy.automationEnabled,
+        toggledBy: req.user.email,
+        timestamp: policy.automationToggledAt,
+      },
+    });
+
+    return sendSuccess(
+      res,
+      {
+        automationEnabled: policy.automationEnabled,
+        automationToggledAt: policy.automationToggledAt,
+      },
+      `Master Automation switch has been ${policy.automationEnabled ? 'ENABLED (LIVE)' : 'DISABLED (OFF)'}`
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * 10. GET /api/v1/attendance/automation/preview/monthly-accrual
+ * Preview what the 1st of month accrual job would credit (nothing saved or sent)
+ */
+export const previewMonthlyAccrual = async (req, res, next) => {
+  try {
+    const { executeMonthlyLeaveAccrual } = await import('../services/leaveAccrual.service.js');
+    const now = new Date();
+    const result = await executeMonthlyLeaveAccrual({
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      preview: true,
+    });
+    return sendSuccess(res, result, 'Monthly accrual preview generated (zero changes saved)');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * 11. GET /api/v1/attendance/automation/preview/missing-clockout
+ * Preview which employees would receive the 19:00 missing clock-out alert (nothing sent)
+ */
+export const previewMissingClockOut = async (req, res, next) => {
+  try {
+    const { runMissingClockOutInspection } = await import('../services/cron.service.js');
+    const result = await runMissingClockOutInspection({ preview: true });
+    return sendSuccess(res, result, '19:00 Missing Clock-out inspection preview (zero notifications sent)');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * 12. GET /api/v1/attendance/automation/preview/eod-not-pa
+ * Preview which employees would be marked absent / NOT P/A at 23:59 EOD (nothing created)
+ */
+export const previewEodNotPa = async (req, res, next) => {
+  try {
+    const { runDailyEODReconciliation } = await import('../services/cron.service.js');
+    const result = await runDailyEODReconciliation({ preview: true });
+    return sendSuccess(res, result, '23:59 EOD Absenteeism preview (zero records created)');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * 13. GET /api/v1/attendance/automation/preview/late-penalties
+ * Preview current month late arrivals that would be flagged for HR review (nothing saved)
+ */
+export const previewLatePenalties = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+
+    const records = await LatePenaltyRecord.find({
+      year,
+      month,
+      isExcused: false,
+    }).populate('employee', 'employeeId personal employment');
+
+    const penalties = records.map((r) => ({
+      employeeId: r.employee?.employeeId,
+      name: `${r.employee?.personal?.firstName || ''} ${r.employee?.personal?.lastName || ''}`.trim(),
+      date: r.dateStr,
+      entryNumber: r.entryNumberInMonth,
+      tier: r.deductionTier,
+      lateMinutes: r.lateMinutes,
+      status: r.status,
+    }));
+
+    return sendSuccess(
+      res,
+      {
+        preview: true,
+        count: penalties.length,
+        penalties,
+      },
+      'Late penalties preview generated (zero changes saved)'
+    );
+  } catch (err) {
+    next(err);
+  }
+};

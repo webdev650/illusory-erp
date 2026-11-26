@@ -29,6 +29,18 @@ initTransporter();
  * Safely skips without crashing if SMTP is unconfigured.
  */
 export const sendEmail = async ({ to, subject, html, text }) => {
+  // Go-live safety switch: When automationEnabled is false, do not send outbound emails
+  try {
+    const { getCompanyPolicy } = await import('../services/dayStatus.service.js');
+    const policy = await getCompanyPolicy();
+    if (!policy || policy.automationEnabled === false) {
+      return { success: true, skipped: true, reason: 'Automation is OFF (Go-live safety switch is disabled)' };
+    }
+  } catch (err) {
+    // Policy fetch error fallback: skip email
+    return { success: true, skipped: true, reason: 'Automation check skipped email' };
+  }
+
   if (!transporter) {
     // Optional SMTP: skip quietly in development
     return { skipped: true, reason: 'SMTP not configured' };

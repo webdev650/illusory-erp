@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import { PageHeader, Card, Button, Badge } from '../../components/ui';
+import AutomationBanner from '../../components/attendance/AutomationBanner';
 import {
   Clock,
   Calendar as CalendarIcon,
@@ -175,6 +176,7 @@ export const ManageLogs = () => {
 
   return (
     <div className="space-y-6">
+      <AutomationBanner />
       <PageHeader
         title="Manage Attendance Logs"
         subtitle="Review, audit, add missing biometric entries, and correct punch anomalies for staff"
