@@ -33,18 +33,23 @@ app.use(
 // Response compression (gzip/brotli)
 app.use(compression());
 
-// Strict CORS: allow configured CLIENT_URL and local dev ports
+// Strict CORS: allow configured CLIENT_URL, local dev ports, and production Vercel frontend
 const allowedOrigins = [
   process.env.CLIENT_URL || 'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
+  'https://illusory-erp.vercel.app',
 ];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, postman) or matching whitelist
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin (like mobile apps, curl, postman) or matching whitelist / vercel preview domains
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        /^https:\/\/illusory-erp.*\.vercel\.app$/.test(origin)
+      ) {
         callback(null, true);
       } else {
         callback(new Error(`CORS blocked for origin: ${origin}`));
