@@ -18,19 +18,29 @@ import { notifyEmployee } from './notification.service.js';
 import { calculateDayStatus } from './dayStatus.service.js';
 
 export const handleWorkflowCompletion = async (approval, finalStatus, actedByUser) => {
-  if (approval.type === 'leave') {
+  const type = approval.type || (
+    approval.referenceModel === 'LeaveRequest' ? 'leave' :
+    approval.referenceModel === 'AttendanceRegularization' ? 'regularization' :
+    approval.referenceModel === 'Timesheet' ? 'timesheet' :
+    approval.referenceModel === 'AssetRequest' ? 'asset_request' :
+    approval.referenceModel === 'RemoteWorkRequest' ? 'remote_work' :
+    approval.referenceModel === 'PartialDayRequest' ? 'partial_day' :
+    approval.referenceModel === 'CompOffRequest' ? 'comp_off' : null
+  );
+
+  if (type === 'leave') {
     await handleLeaveCompletion(approval, finalStatus, actedByUser);
-  } else if (approval.type === 'regularization') {
+  } else if (type === 'regularization') {
     await handleRegularizationCompletion(approval, finalStatus, actedByUser);
-  } else if (approval.type === 'timesheet') {
+  } else if (type === 'timesheet') {
     await handleTimesheetCompletion(approval, finalStatus, actedByUser);
-  } else if (approval.type === 'asset_request') {
+  } else if (type === 'asset_request') {
     await handleAssetRequestCompletion(approval, finalStatus, actedByUser);
-  } else if (approval.type === 'remote_work') {
+  } else if (type === 'remote_work') {
     await handleRemoteWorkCompletion(approval, finalStatus, actedByUser);
-  } else if (approval.type === 'partial_day') {
+  } else if (type === 'partial_day') {
     await handlePartialDayCompletion(approval, finalStatus, actedByUser);
-  } else if (approval.type === 'comp_off') {
+  } else if (type === 'comp_off') {
     await handleCompOffCompletion(approval, finalStatus, actedByUser);
   }
 };
@@ -308,8 +318,11 @@ const handleCompOffCompletion = async (approval, finalStatus, actedByUser) => {
   await req.save();
 
   if (finalStatus === 'approved') {
+    const { getCompanyPolicy } = await import('./dayStatus.service.js');
+    const policy = await getCompanyPolicy();
+    const expiryDays = policy.compOffExpiryDays || 30;
     const workedDate = new Date(req.workedDate);
-    const expiresAt = new Date(workedDate.getTime() + 60 * 24 * 60 * 60 * 1000); // 60 days validity
+    const expiresAt = new Date(workedDate.getTime() + expiryDays * 24 * 60 * 60 * 1000); // Rule Book 30 days validity
 
     await CompOffCredit.create({
       employee: req.employee,

@@ -30,6 +30,7 @@ const leaveLedgerSchema = new mongoose.Schema(
       enum: [
         'opening',
         'entitlement',
+        'monthly_accrual',
         'taken',
         'pending_hold',
         'pending_release',
@@ -59,6 +60,11 @@ const leaveLedgerSchema = new mongoose.Schema(
     referenceId: {
       type: mongoose.Schema.Types.ObjectId,
       default: null,
+    },
+    memo: {
+      type: String,
+      default: '',
+      index: true,
     },
     notes: {
       type: String,

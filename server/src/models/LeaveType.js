@@ -15,6 +15,23 @@ const leaveTypeSchema = new mongoose.Schema(
     requiresDocument: { type: Boolean, default: false },
     allowHalfDay: { type: Boolean, default: true },
     isActive: { type: Boolean, default: true },
+    accrualMode: {
+      type: String,
+      enum: ['monthly', 'upfront'],
+      default: 'monthly',
+    },
+    isRuleBookStandard: {
+      type: Boolean,
+      default: true,
+    },
+    unverifiedNote: {
+      type: String,
+      default: '',
+    },
+    isDisabled: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

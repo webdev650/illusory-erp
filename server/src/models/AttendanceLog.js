@@ -57,6 +57,14 @@ const attendanceLogSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    ipAddress: {
+      type: String,
+      default: '',
+    },
+    deviceInfo: {
+      type: String,
+      default: '',
+    },
   },
   { timestamps: true }
 );

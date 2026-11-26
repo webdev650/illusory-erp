@@ -3,6 +3,7 @@ import { ApprovalRequest } from '../models/ApprovalRequest.js';
 import { WorkflowConfig } from '../models/WorkflowConfig.js';
 import { Employee } from '../models/Employee.js';
 import { User } from '../models/User.js';
+import { Role } from '../models/Role.js';
 import { Department } from '../models/Department.js';
 import { Delegation } from '../models/Delegation.js';
 import { AuditLog } from '../models/AuditLog.js';

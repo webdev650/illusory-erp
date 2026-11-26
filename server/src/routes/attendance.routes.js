@@ -11,6 +11,17 @@ import {
   updatePolicy,
   exportAttendance,
 } from '../controllers/attendanceSuite.controller.js';
+import {
+  getPolicyConfirmations,
+  confirmPolicyItem,
+  getLatePenalties,
+  actOnLatePenalty,
+  getCriticalDates,
+  createCriticalDate,
+  deleteCriticalDate,
+  getUnauthorizedAbsences,
+  actOnUnauthorizedAbsence,
+} from '../controllers/ruleBookPolicy.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import requestsRoutes from './requests.routes.js';
@@ -52,6 +63,23 @@ router.delete('/logs/:id', requirePermission('attendance.manage'), deleteManualP
 // Policy settings
 router.get('/policy', getPolicy);
 router.put('/policy', requirePermission('system.manage'), updatePolicy);
+
+// Rule Book Policy Confirmation Checklist (Section 12 items)
+router.get('/policy/confirmations', getPolicyConfirmations);
+router.post('/policy/confirmations/:key', requirePermission(['attendance.manage', 'system.manage', 'hr.access']), confirmPolicyItem);
+
+// Late Penalty Records & Actions
+router.get('/late-penalties', getLatePenalties);
+router.post('/late-penalties/:id/action', requirePermission(['attendance.manage', 'hr.access']), actOnLatePenalty);
+
+// Critical Dates Calendar
+router.get('/critical-dates', getCriticalDates);
+router.post('/critical-dates', requirePermission(['attendance.manage', 'hr.access']), createCriticalDate);
+router.delete('/critical-dates/:id', requirePermission(['attendance.manage', 'hr.access']), deleteCriticalDate);
+
+// Unauthorized Absences
+router.get('/unauthorized-absences', getUnauthorizedAbsences);
+router.post('/unauthorized-absences/:id/action', requirePermission(['attendance.manage', 'hr.access']), actOnUnauthorizedAbsence);
 
 // Exporting
 router.get('/export', exportAttendance);

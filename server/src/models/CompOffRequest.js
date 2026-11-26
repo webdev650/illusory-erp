@@ -29,6 +29,22 @@ const compOffRequestSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    isPreApproved: {
+      type: Boolean,
+      default: true,
+    },
+    isManagementInstructed: {
+      type: Boolean,
+      default: false,
+    },
+    managementInstructionReason: {
+      type: String,
+      default: '',
+    },
+    actualPresenceValidated: {
+      type: Boolean,
+      default: false,
+    },
     status: {
       type: String,
       enum: ['pending', 'approved', 'rejected', 'cancelled'],

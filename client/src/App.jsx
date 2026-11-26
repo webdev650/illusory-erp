@@ -37,6 +37,7 @@ import ShiftRoster from './pages/attendance/ShiftRoster';
 import LeaveBalanceSettlement from './pages/attendance/LeaveBalanceSettlement';
 import CutoverReadiness from './pages/attendance/CutoverReadiness';
 import AttendanceReports from './pages/attendance/AttendanceReports';
+import PolicyConfirmation from './pages/attendance/PolicyConfirmation';
 
 export const App = () => {
   return (
@@ -204,6 +205,14 @@ export const App = () => {
           element={
             <ProtectedRoute requiredPermission={['reports.view', 'attendance.manage', 'hr.access']}>
               <AttendanceReports />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/attendance/policy-confirmation"
+          element={
+            <ProtectedRoute requiredPermission={['hr.access', 'attendance.manage', 'system.manage']}>
+              <PolicyConfirmation />
             </ProtectedRoute>
           }
         />

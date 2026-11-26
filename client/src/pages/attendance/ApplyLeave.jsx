@@ -205,6 +205,17 @@ export const ApplyLeave = () => {
         </Button>
       </PageHeader>
 
+      {/* Rule Book Advisory Notice */}
+      <div className="bg-indigo-950/40 border border-indigo-800/40 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-indigo-300">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+          <span>
+            <strong className="text-white">Applied does not mean Approved:</strong> Leave is only valid upon explicit review and confirmation by your Reporting Manager and HR.
+          </span>
+        </div>
+        <span className="text-[11px] text-indigo-400/80 font-medium font-mono">Rule Book §6</span>
+      </div>
+
       {/* Quotas Balance Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {balances.map((b) => (
@@ -528,6 +539,11 @@ export const ApplyLeave = () => {
       {/* Apply Leave Modal */}
       <Modal isOpen={isApplyOpen} onClose={() => setIsApplyOpen(false)} title="Apply Leave Application" size="md">
         <form onSubmit={handleApplySubmit} className="space-y-4">
+          <div className="p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-800/40 text-xs text-indigo-300 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span><strong className="text-white">Applied does not mean Approved.</strong> Submission triggers the manager & HR approval workflow.</span>
+          </div>
+
           {formError && (
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />

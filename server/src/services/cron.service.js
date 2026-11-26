@@ -417,8 +417,28 @@ export const initCronJobs = () => {
     { timezone: 'Asia/Kolkata' }
   );
 
+  // Monthly Leave Accrual Cron: Runs on the 1st of every month at 00:10 Asia/Kolkata
+  cron.schedule(
+    '10 0 1 * *',
+    async () => {
+      console.log('⏰ [Cron] Running monthly leave accrual at 00:10 IST...');
+      try {
+        const { executeMonthlyLeaveAccrual } = await import('./leaveAccrual.service.js');
+        const now = new Date();
+        const res = await executeMonthlyLeaveAccrual({
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+        });
+        console.log(`✅ [Cron] Monthly leave accrual completed: Credited ${res.credited}, Skipped ${res.skippedAlreadyAccrued}`);
+      } catch (err) {
+        console.error('❌ [Cron Error] Monthly leave accrual failed:', err.message);
+      }
+    },
+    { timezone: 'Asia/Kolkata' }
+  );
+
   console.log(
-    '🕒 Node-Cron registered: Attendance (23:59 IST), Tasks & Assets (09:00 IST), Timesheet Reminders, Comp-Off Expiry (01:00 IST), Approver Reminders (09:30 IST)'
+    '🕒 Node-Cron registered: Attendance (23:59 IST), Leave Accrual (1st 00:10 IST), Tasks & Assets (09:00 IST), Timesheet Reminders, Comp-Off Expiry (01:00 IST), Approver Reminders (09:30 IST)'
   );
 };
 

@@ -45,6 +45,11 @@ const regularizationSchema = new mongoose.Schema(
       default: 'pending',
       index: true,
     },
+    isException: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     approvalRequest: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ApprovalRequest',

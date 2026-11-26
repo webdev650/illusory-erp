@@ -67,15 +67,7 @@ export const ERP_MODULES = [
         requiredPermission: null,
         description: 'Apply for work-from-home or off-site client engagement days',
       },
-      {
-        key: 'attendance-partial-day',
-        label: 'Apply Partial Day',
-        icon: 'Clock',
-        path: '/hrms/attendance/partial-day',
-        status: 'live',
-        requiredPermission: null,
-        description: 'Late coming, early leaving, or short leave excuse requests',
-      },
+      // Hourly Partial Day is NOT defined by Rule Book (Hidden: HR must define eligible duration and calculation first)
       {
         key: 'attendance-comp-off',
         label: 'Apply Comp-Off Credits',
@@ -129,6 +121,15 @@ export const ERP_MODULES = [
         status: 'live',
         requiredPermission: 'reports.view',
         description: 'Audit registers, late arrival tracking, overtime, and leave ledgers',
+      },
+      {
+        key: 'attendance-policy-confirmation',
+        label: 'Rule Book Policy Confirmation',
+        icon: 'ShieldCheck',
+        path: '/hrms/attendance/policy-confirmation',
+        status: 'live',
+        requiredPermission: 'hr.access',
+        description: 'Verify, review, and confirm company Rule Book Section 12 policy settings',
       },
       {
         key: 'hrms-approvals',

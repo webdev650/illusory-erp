@@ -11,6 +11,9 @@ import { AttendanceLog } from '../models/AttendanceLog.js';
 import { Attendance } from '../models/Attendance.js';
 import { Holiday } from '../models/Holiday.js';
 import { Employee } from '../models/Employee.js';
+import { CriticalDate } from '../models/CriticalDate.js';
+import { getCompanyPolicy } from '../services/dayStatus.service.js';
+import { calculateServiceMonths } from '../services/leaveAccrual.service.js';
 import { createApprovalRequest } from '../services/approval.service.js';
 import { handleWorkflowCompletion } from '../services/approvalHandlers.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
@@ -19,7 +22,7 @@ import { sendSuccess, sendError } from '../utils/apiResponse.js';
  * Resolves target employee and verifies behalf-application permissions
  */
 const resolveTargetEmployee = async (req) => {
-  const targetId = req.body.employeeId || req.query.employeeId;
+  const targetId = req.body?.employeeId || req.query?.employeeId;
   const userEmpId = req.user.employee?._id;
   const userRole = req.userRole;
 
@@ -197,6 +200,27 @@ export const applyRegularizationRequest = async (req, res, next) => {
     const endOfDay = new Date(reqDate);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // Rule Book: Max 2 regularizations per calendar month (3rd requires exception request)
+    const policy = await getCompanyPolicy();
+    const maxRegs = policy.maxRegularizationsPerMonth || 2;
+    const startOfMonth = new Date(reqDate.getFullYear(), reqDate.getMonth(), 1);
+    const endOfMonth = new Date(reqDate.getFullYear(), reqDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const monthlyCount = await AttendanceRegularization.countDocuments({
+      employee: employeeId,
+      date: { $gte: startOfMonth, $lte: endOfMonth },
+      status: { $in: ['pending', 'approved'] },
+    });
+
+    const isException = !!req.body.isException;
+    if (monthlyCount >= maxRegs && !isException) {
+      return sendError(
+        res,
+        `You have reached the monthly limit of ${maxRegs} regularizations for this calendar month per company Rule Book. The 3rd request can only be submitted as an Exception Request requiring HR approval.`,
+        400
+      );
+    }
+
     const existingPending = await AttendanceRegularization.findOne({
       employee: employeeId,
       punchType,
@@ -218,6 +242,7 @@ export const applyRegularizationRequest = async (req, res, next) => {
       requestedCheckIn: punchType === 'in' ? punchDateTime : null,
       requestedCheckOut: punchType === 'out' ? punchDateTime : null,
       reason,
+      isException,
       status: 'pending',
       appliedBy: isOnBehalf ? req.user._id : null,
     });
@@ -327,6 +352,50 @@ export const applyLeaveRequest = async (req, res, next) => {
     }
 
     const emp = await Employee.findById(employeeId);
+    const policy = await getCompanyPolicy();
+
+    // 1. Annual Leave 6-month continuous employment barrier
+    if (['AL', 'ANNUAL', 'EL', 'EARNED'].includes(leaveType.code)) {
+      const serviceAnchor = policy.minServiceFrom === 'confirmation'
+        ? (emp?.employment?.confirmationDate || emp?.employment?.joiningDate)
+        : emp?.employment?.joiningDate;
+      const serviceMonths = calculateServiceMonths(serviceAnchor, start.getFullYear(), start.getMonth() + 1);
+      const minRequired = policy.minServiceMonths || 6;
+      if (serviceMonths < minRequired) {
+        return sendError(
+          res,
+          `Annual Leave is strictly eligible only after ${minRequired} months of continuous employment per Rule Book (Current service: ${serviceMonths} months)`,
+          400
+        );
+      }
+    }
+
+    // 2. Advance notice rules (CL: 24h, AL: 14 days unless genuine emergency)
+    const nowMs = Date.now();
+    const noticeHours = (start.getTime() - nowMs) / (1000 * 60 * 60);
+    const isEmergency = !!req.body.isEmergency;
+
+    if (['CL', 'CASUAL'].includes(leaveType.code)) {
+      const minNotice = policy.noticeRules?.casualLeaveHours || 24;
+      if (noticeHours < minNotice && !isEmergency) {
+        return sendError(
+          res,
+          `Casual Leave requires at least ${minNotice} hours advance notice unless applied under a genuine emergency.`,
+          400
+        );
+      }
+    }
+
+    if (['AL', 'ANNUAL', 'EL', 'EARNED'].includes(leaveType.code)) {
+      const minNoticeDays = policy.noticeRules?.annualLeaveDays || 14;
+      if (noticeHours < minNoticeDays * 24 && !isEmergency) {
+        return sendError(
+          res,
+          `Annual Leave requires at least ${minNoticeDays} days advance notice unless applied under a genuine emergency.`,
+          400
+        );
+      }
+    }
 
     // Probation leave rule: only employees with status 'probation' can apply
     if (['PL', 'PROBATION'].includes(leaveType.code) && emp?.status !== 'probation') {
@@ -344,11 +413,27 @@ export const applyLeaveRequest = async (req, res, next) => {
     const calculatedDays = isHalfDay ? 0.5 : workingDaysCount;
     const calculatedMinutes = isHalfDay ? 240 : workingDaysCount * 465;
 
-    // Sick leave document check
-    if ((leaveType.code === 'SL' && calculatedDays > 2) || (leaveType.requiresDocument && !document?.url)) {
-      if (!document?.url) {
-        return sendError(res, 'A medical certificate or document attachment is mandatory for this leave request', 400);
+    // Sick leave 48-hour medical proof requirement for 2+ consecutive days
+    let proofStatus = 'none';
+    let proofDeadline = null;
+    if (['SL', 'SICK'].includes(leaveType.code) && calculatedDays >= (policy.noticeRules?.sickLeaveDocConsecutiveDays || 2)) {
+      if (document?.url) {
+        proofStatus = 'submitted';
+      } else {
+        proofStatus = 'proof_pending';
+        proofDeadline = new Date(end.getTime() + (policy.noticeRules?.sickLeaveDocSubmissionHours || 48) * 60 * 60 * 1000);
       }
+    } else if (leaveType.requiresDocument && !document?.url) {
+      return sendError(res, 'A document attachment is mandatory for this leave request', 400);
+    }
+
+    // Critical dates advisory warning
+    const criticalDates = await CriticalDate.find({
+      date: { $gte: start, $lte: end },
+    });
+    let criticalWarning = null;
+    if (criticalDates.length > 0) {
+      criticalWarning = `Advisory Notice: ${criticalDates.map((c) => c.title).join(', ')} scheduled during requested dates. Leave is generally not approved on critical workdays.`;
     }
 
     // Balance check
@@ -392,7 +477,13 @@ export const applyLeaveRequest = async (req, res, next) => {
 
       const available = (balance.allocated + balance.carried) - (balance.used + balance.pending);
       if (leaveType.paid && available < calculatedDays) {
-        return sendError(res, `Insufficient leave quota. Available balance: ${available} days, Requested: ${calculatedDays} days`, 400);
+        if (!req.body.isException) {
+          return sendError(
+            res,
+            `Insufficient leave quota (${available} days available, ${calculatedDays} requested). Employees cannot self-declare LWP. You may submit an Exception Request for HR decision.`,
+            400
+          );
+        }
       }
 
       // Reserve pending quota
@@ -410,6 +501,10 @@ export const applyLeaveRequest = async (req, res, next) => {
       minutes: calculatedMinutes,
       reason,
       document,
+      isEmergency,
+      proofStatus,
+      proofDeadline,
+      isException: !!req.body.isException,
       status: 'pending',
       appliedBy: isOnBehalf ? req.user._id : null,
     });
@@ -438,7 +533,7 @@ export const applyLeaveRequest = async (req, res, next) => {
     leave.approvalRequest = approval._id;
     await leave.save();
 
-    return sendSuccess(res, leave, 'Leave application submitted successfully', 201);
+    return sendSuccess(res, leave, criticalWarning ? `Leave submitted. ${criticalWarning}` : 'Leave application submitted successfully', 201);
   } catch (err) {
     if (err.statusCode) return sendError(res, err.message, err.statusCode);
     next(err);
@@ -677,6 +772,15 @@ export const getPartialDayRequests = async (req, res, next) => {
 
 export const applyPartialDayRequest = async (req, res, next) => {
   try {
+    const policy = await getCompanyPolicy();
+    if (!policy.partialDayEnabled) {
+      return sendError(
+        res,
+        'Hourly Partial Day leave is currently disabled. HR must define eligible duration and calculation rules first as this is not defined in the company Rule Book.',
+        403
+      );
+    }
+
     const { date, type, minutes, reason } = req.body;
     const { employeeId, isOnBehalf } = await resolveTargetEmployee(req);
 
@@ -925,6 +1029,23 @@ export const applyCompOffRequest = async (req, res, next) => {
       return sendError(res, 'Comp-off can only be claimed for working on Sundays or recognized company holidays', 400);
     }
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const isPast = startOfDay < todayStart;
+    const isManagementInstructed = !!req.body.isManagementInstructed;
+    const managementInstructionReason = req.body.managementInstructionReason || '';
+
+    if (isPast && !isManagementInstructed) {
+      const isHRAdmin = ['super_admin', 'hr'].includes(req.userRole);
+      if (!isHRAdmin) {
+        return sendError(
+          res,
+          'Work on holidays or week-offs must be pre-approved before the work date, unless explicitly instructed by Management.',
+          400
+        );
+      }
+    }
+
     // Check duplicate request
     const existing = await CompOffRequest.findOne({
       employee: employeeId,
@@ -981,6 +1102,9 @@ export const applyCompOffRequest = async (req, res, next) => {
       creditMinutes,
       creditDays,
       reason,
+      isPreApproved: !isPast,
+      isManagementInstructed,
+      managementInstructionReason,
       status: 'pending',
       appliedBy: isOnBehalf ? req.user._id : null,
     });
