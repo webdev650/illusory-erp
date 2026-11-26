@@ -397,3 +397,53 @@ approvalRegistry.register('letter', {
   },
   onCancelled: async (approval, user) => {},
 });
+
+// 10. GOAL REQUISITION APPROVAL
+approvalRegistry.register('goal', {
+  label: 'OKR Goal Approval',
+  icon: 'Target',
+  colour: 'emerald',
+  module: 'Performance',
+  permission: 'performance.goal.approve',
+  defaultSlaHours: 72,
+  referenceModel: 'Goal',
+  renderSummary: (req) => {
+    const meta = req.metadata || {};
+    return `Goal: "${meta.title || req.title}" (${meta.keyResultCount || 0} Key Results, Weight ${meta.weight || 1})`;
+  },
+  fetchDetails: async (referenceId) => {
+    const goal = await mongoose.model('Goal').findById(referenceId)
+      .populate('employee', 'personal.firstName personal.lastName employeeId employment.designation')
+      .populate('linkedProjects', 'name code');
+    return {
+      type: 'goal',
+      goal,
+      title: goal?.title,
+      description: goal?.description,
+      keyResults: goal?.keyResults,
+      dueDate: goal?.dueDate,
+    };
+  },
+  onApproved: async (approval, user) => {
+    const goal = await mongoose.model('Goal').findById(approval.referenceId);
+    if (goal) {
+      goal.status = 'active';
+      await goal.save();
+      return goal;
+    }
+  },
+  onRejected: async (approval, user) => {
+    const goal = await mongoose.model('Goal').findById(approval.referenceId);
+    if (goal) {
+      goal.status = 'draft';
+      await goal.save();
+    }
+  },
+  onCancelled: async (approval, user) => {
+    const goal = await mongoose.model('Goal').findById(approval.referenceId);
+    if (goal) {
+      goal.status = 'cancelled';
+      await goal.save();
+    }
+  },
+});

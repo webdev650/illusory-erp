@@ -867,14 +867,38 @@ describe('OFFICIAL ATTENDANCE & LEAVE RULE BOOK TEST SUITE', () => {
       expect(res.reason).toMatch(/Automation is OFF/i);
     });
 
-    test('Safety Switch OFF: Outbound email dispatcher skips email sending', async () => {
+    test('Safety Switch OFF: Outbound email dispatcher skips email sending for non-essential types', async () => {
       const res = await sendEmail({
         to: 'test@illusorydesignstudios.com',
         subject: 'Go-Live Safety Test',
         text: 'Testing safety switch outbound block',
+        type: 'daily_digest',
       });
       expect(res.skipped).toBe(true);
       expect(res.reason).toMatch(/Automation is OFF/i);
+    });
+
+    test('Safety Switch OFF: Whitelisted essential account emails ALWAYS send (not blocked by switch)', async () => {
+      const essentialTypes = [
+        'temporary_password',
+        'new_account',
+        'password_reset',
+        'login_security_alert',
+        'account_changed',
+      ];
+
+      for (const emailType of essentialTypes) {
+        const res = await sendEmail({
+          to: 'test@illusorydesignstudios.com',
+          subject: `Essential Security Notification: ${emailType}`,
+          text: 'Account security notification',
+          type: emailType,
+        });
+
+        // Must NOT be blocked by automation switch
+        expect(res.reason).not.toMatch(/Automation is OFF/i);
+        expect(res.isEssential).toBe(true);
+      }
     });
 
     test('Master Switch API: Rejects non-super-admin user', async () => {

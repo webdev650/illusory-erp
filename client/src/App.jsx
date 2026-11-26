@@ -8,6 +8,7 @@ import { Home } from './pages/Home';
 import { HRMS } from './pages/HRMS';
 import { HRMSDashboard } from './pages/HRMSDashboard';
 import { Warnings } from './pages/Warnings';
+import { Performance } from './pages/Performance';
 import { LettersAndDocuments } from './pages/LettersAndDocuments';
 import { VerifyDocument } from './pages/VerifyDocument';
 import { ModuleComingSoon } from './pages/ModuleComingSoon';
@@ -237,6 +238,14 @@ export const App = () => {
           element={
             <ProtectedRoute requiredPermission="hr.access">
               <Warnings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="hrms/performance"
+          element={
+            <ProtectedRoute requiredPermission="performance.viewOwn">
+              <Performance />
             </ProtectedRoute>
           }
         />

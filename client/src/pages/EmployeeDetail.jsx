@@ -894,6 +894,41 @@ export const EmployeeDetail = () => {
         </div>
       )}
 
+      {/* Tab: Performance */}
+      {activeTab === 'performance' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center justify-between border-b pb-4 dark:border-slate-700">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Performance Appraisals & Cycles</h3>
+                <p className="text-xs text-slate-500">Official evaluation history and published review scores for this employee.</p>
+              </div>
+              <span className="text-xs px-2.5 py-1 bg-amber-50 text-amber-900 border border-amber-200 rounded-md font-medium">
+                Confidential Scoping Enforced
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">Annual Review Cycle 2026</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">Status: In Progress • Manager: Assigned Reporting Lead</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                    Cycle Active
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-xs text-slate-500 italic p-3 bg-slate-50/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                ℹ️ Note: Per studio confidentiality rules, evaluator comments and calibration adjustments are displayed only after outcomes are formally published by HR. Internal manager recommendation notes are restricted to HR administrators.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Set Employment Status Modal */}
       {statusModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">

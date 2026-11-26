@@ -25,6 +25,14 @@ const getTransporter = () => {
   return transporter;
 };
 
+export const ESSENTIAL_EMAIL_TYPES = [
+  'temporary_password',
+  'new_account',
+  'password_reset',
+  'login_security_alert',
+  'account_changed',
+];
+
 /**
  * Send an email notification or alert.
  * If SMTP is unconfigured, gracefully skips and logs a debug notice.
@@ -34,29 +42,49 @@ const getTransporter = () => {
  * @param {string} options.subject - Email subject
  * @param {string} [options.text] - Plaintext body
  * @param {string} [options.html] - HTML body
+ * @param {string} [options.type] - Email category/type
+ * @param {boolean} [options.isEssential] - Explicit essential override
  * @param {Array<object>} [options.attachments] - Optional attachments
  */
-export const sendEmail = async ({ to, subject, text, html, attachments = [] }) => {
-  // Go-live safety switch: When automationEnabled is false, do not send outbound emails
+export const sendEmail = async ({
+  to,
+  subject,
+  text,
+  html,
+  type = null,
+  isEssential = false,
+  attachments = [],
+}) => {
+  const isAccountEssential = isEssential || (type && ESSENTIAL_EMAIL_TYPES.includes(type));
+
+  // Go-live safety switch: When automationEnabled is false, do not send outbound emails unless essential
   try {
     const { getCompanyPolicy } = await import('./dayStatus.service.js');
     const policy = await getCompanyPolicy();
-    if (!policy || policy.automationEnabled === false) {
-      logger.info({ to, subject }, 'Go-live safety switch is OFF; outbound email suppressed.');
+    if ((!policy || policy.automationEnabled === false) && !isAccountEssential) {
+      logger.info({ to, subject, type }, 'Go-live safety switch is OFF; outbound non-essential email suppressed.');
       return { success: true, skipped: true, reason: 'Automation is OFF (Go-live safety switch is disabled)' };
     }
   } catch (err) {
-    return { success: true, skipped: true, reason: 'Automation check suppressed email' };
+    if (!isAccountEssential) {
+      return { success: true, skipped: true, reason: 'Automation check suppressed email' };
+    }
   }
 
   const mailer = getTransporter();
 
   if (!mailer) {
     logger.info(
-      { to, subject },
+      { to, subject, isAccountEssential, type },
       'SMTP credentials not configured in server/.env; skipping outbound email dispatch.'
     );
-    return { success: true, skipped: true, message: 'SMTP not configured' };
+    return {
+      success: true,
+      skipped: true,
+      message: 'SMTP not configured',
+      isEssential: isAccountEssential,
+      type,
+    };
   }
 
   try {
@@ -70,11 +98,11 @@ export const sendEmail = async ({ to, subject, text, html, attachments = [] }) =
       attachments,
     });
 
-    logger.info({ messageId: info.messageId, to, subject }, 'Email sent successfully');
-    return { success: true, messageId: info.messageId };
+    logger.info({ messageId: info.messageId, to, subject, isAccountEssential, type }, 'Email sent successfully');
+    return { success: true, messageId: info.messageId, isEssential: isAccountEssential, type };
   } catch (err) {
-    logger.error({ err: err.message, to, subject }, 'Failed to send outbound email');
-    return { success: false, error: err.message };
+    logger.error({ err: err.message, to, subject, isAccountEssential, type }, 'Failed to send outbound email');
+    return { success: false, error: err.message, isEssential: isAccountEssential, type };
   }
 };
 

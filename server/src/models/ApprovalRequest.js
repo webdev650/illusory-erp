@@ -49,6 +49,7 @@ const approvalRequestSchema = new mongoose.Schema(
         'partial_day',
         'comp_off',
         'letter',
+        'goal',
         'other',
       ],
       index: true,

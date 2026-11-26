@@ -18,12 +18,18 @@ import preferenceRoutes from './preference.routes.js';
 import hrmsDashboardRoutes from './hrmsDashboard.routes.js';
 import attendanceRoutes from './attendance.routes.js';
 import letterRoutes from './letter.routes.js';
+import performanceRoutes from './performance.routes.js';
+import { getMyPerformance } from '../controllers/performance.controller.js';
+import { authenticate } from '../middleware/auth.js';
 import { verifyPublicLetter } from '../controllers/letter.controller.js';
 
 const router = Router();
 
 // Public verification endpoint alias
 router.get('/verify/:token', verifyPublicLetter);
+
+// Me Performance endpoint
+router.get('/me/performance', authenticate, getMyPerformance);
 
 // Liveness & readiness probes
 router.use('/', healthRoutes);
@@ -41,6 +47,7 @@ router.use('/approvals', approvalRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/letters', letterRoutes);
+router.use('/performance', performanceRoutes);
 router.use('/hr', hrRoutes);
 router.use('/clients', clientRoutes);
 router.use('/projects', projectRoutes);

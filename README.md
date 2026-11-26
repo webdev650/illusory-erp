@@ -327,3 +327,42 @@ Daily attendance status is evaluated strictly via punch presence and clock cut-o
 - **Protected Operations**: While OFF, all automated background crons, monthly accruals, missing clock-out auto-closures, EOD reconciliations, late penalty deductions, escalation notifications, and outbound SMTP emails are completely suspended.
 - **Safety Toggle**: Restricted strictly to `super_admin` role, requiring explicit typed confirmation phrase `'ENABLE_AUTOMATION'`. All toggle events are permanently recorded in `AuditLog`.
 - **Simulation Hub**: Allows HR & Super Admin to run safe dry-run preview simulations (`Monthly Accrual`, `Missing Clock-Out (19:00)`, `EOD Absenteeism (23:59)`, and `Late Penalties`) without altering any live database records.
+
+
+---
+
+## 🎯 HRMS Performance & Appraisal Master Module (`/hrms/performance`)
+
+A confidential, multi-perspective performance evaluation and OKR goal management system built for Illusory Design Studios (Bhubaneswar, Odisha).
+
+### 🏛️ Core Principles & Ethical Safeguards
+1. **People Decisions, Never Algorithms**: Performance data informs and supports people decisions; it never makes them. No automated ratings, promotions, compensation increments, warnings, PIPs, or terminations occur without explicit human authorization.
+2. **Confidentiality & Role Scoping**: Evaluator ratings and comments are strictly confidential and hidden from employees until HR formally publishes cycle outcomes. Internal manager/HR recommendation notes are strictly restricted to HR administrators and never visible to the reviewed employee.
+3. **Privacy Protection Threshold**: Department rating charts enforce a mandatory minimum threshold ($\ge 3$ evaluated members). Groups smaller than 3 are suppressed to prevent exposing individual ratings.
+4. **Official Policy Notice**: The module displays a mandatory notification: *"Review rating scales, weightings and consequences must follow the company's HR policy; confirm with HR."* Every unconfirmed default is badged as `unverified, confirm with HR`.
+5. **Acknowledgement is Receipt, Not Agreement**: When acknowledging a review, employees can submit a formal response or choose "I Disagree" (`isDisputed: true`), which routes the evaluation to HR for review.
+6. **Essential Account Email Whitelist**: Essential security notifications (`temporary_password`, `new_account`, `password_reset`, `login_security_alert`, `account_changed`) always dispatch via SMTP even when the Go-Live master automation switch is OFF.
+
+### 🔑 14 Granular Performance Permissions
+| Permission Key | Description | Granted Roles |
+| :--- | :--- | :--- |
+| `performance.viewOwn` | View personal reviews, self-evaluations, and goals | Employee, Manager, HR, Super Admin |
+| `performance.reviewTeam` | Submit evaluations for direct reports | Manager, HR, Super Admin |
+| `performance.viewTeam` | View performance progress of team members | Manager, HR, Super Admin |
+| `performance.viewAll` | Access company-wide evaluation records | HR, Super Admin |
+| `performance.cycle.manage` | Create, configure, start, and close review cycles | HR, Super Admin |
+| `performance.template.manage` | Build, version, and edit evaluation templates | HR, Super Admin |
+| `performance.calibrate` | Calibrate ratings with mandatory recorded reasons | HR, Super Admin |
+| `performance.publish` | Formally release review outcomes to employees | HR, Super Admin |
+| `performance.goal.manage` | Create and track personal and team OKR goals | Employee, Manager, HR, Super Admin |
+| `performance.goal.approve` | Approve goal requisitions in the Approval Engine | Manager, HR, Super Admin |
+| `performance.feedback.give` | Give public kudos or private constructive feedback | Employee, Manager, HR, Super Admin |
+| `performance.feedback.viewAggregate` | View aggregated 360-degree feedback summaries | Manager, HR, Super Admin |
+| `performance.export` | Export evaluation data with confidential audit watermark | HR, Super Admin |
+| `performance.configure` | Configure global rating scales and retention settings | Super Admin |
+
+### 🔗 Cross-Module Integrations
+- **Warnings & PIP**: HR can click *"Recommend PIP"* from any review to create a **DRAFT PIP** in the Warnings module prefilled with review feedback. Nothing starts automatically.
+- **Official Letters**: Pre-seeded sample letter templates for Salary Increment (`SAMPLE_INCREMENT`), Promotion (`SAMPLE_PROMOTION`), and Appraisal Summary (`SAMPLE_APPRAISAL_SUMMARY`).
+- **Approval Engine**: Goal requisitions integrate seamlessly with the universal approval registry (`type: 'goal'`).
+- **Employee Master**: The Employee Detail page features a dedicated **Performance** tab displaying historical published reviews.

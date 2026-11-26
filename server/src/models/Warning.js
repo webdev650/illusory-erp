@@ -36,7 +36,7 @@ const warningSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'closed'],
+      enum: ['draft', 'active', 'closed'],
       default: 'active',
       index: true,
     },
