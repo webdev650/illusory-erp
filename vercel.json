@@ -3,7 +3,11 @@
   "outputDirectory": "client/dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/:path*",
+      "destination": "https://illusory-erp.onrender.com/api/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]

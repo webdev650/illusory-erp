@@ -14,6 +14,15 @@ const api = axios.create({
   },
 });
 
+// Interceptor to attach JWT token from localStorage if available
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('illusory_token');
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Interceptor to handle responses and 401 unauthenticated redirects
 api.interceptors.response.use(
   (response) => response.data,
@@ -21,9 +30,9 @@ api.interceptors.response.use(
     const message =
       error.response?.data?.message || error.message || 'Something went wrong';
     
-    // If unauthenticated and not on the login page, redirect
+    // If unauthenticated and not on the login page, clear token
     if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
-      // Clear any state if needed
+      localStorage.removeItem('illusory_token');
     }
 
     return Promise.reject(new Error(message));
