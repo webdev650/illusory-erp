@@ -23,8 +23,25 @@ export const ChangePassword = () => {
     upper: /[A-Z]/.test(newPassword),
     lower: /[a-z]/.test(newPassword),
     number: /[0-9]/.test(newPassword),
+    symbol: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(newPassword),
+    notCurrent: currentPassword.length > 0 && newPassword !== currentPassword,
     match: newPassword.length > 0 && newPassword === confirmPassword,
   };
+
+  // Password strength calculation
+  const getStrength = () => {
+    let score = 0;
+    if (criteria.length) score += 20;
+    if (criteria.upper) score += 20;
+    if (criteria.lower) score += 20;
+    if (criteria.number) score += 20;
+    if (criteria.symbol) score += 20;
+    if (score <= 40) return { label: 'Weak', percent: score, color: 'bg-red-500', text: 'text-red-500' };
+    if (score <= 80) return { label: 'Moderate', percent: score, color: 'bg-amber-500', text: 'text-amber-500' };
+    return { label: 'Strong', percent: score, color: 'bg-emerald-500', text: 'text-emerald-500' };
+  };
+
+  const strength = getStrength();
 
   const handleBackToLogin = () => {
     try {
@@ -53,6 +70,18 @@ export const ChangePassword = () => {
     }
     if (!criteria.number) {
       setError('New password must contain at least one number (0-9)');
+      return;
+    }
+    if (!criteria.symbol) {
+      setError('New password must contain at least one special symbol (!@#$%^&*...)');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setError('New password cannot be the same as your temporary password');
+      return;
+    }
+    if (user?.email && (newPassword.toLowerCase() === user.email.toLowerCase() || newPassword.toLowerCase() === user.email.split('@')[0].toLowerCase())) {
+      setError('New password cannot contain your official email');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -167,11 +196,24 @@ export const ChangePassword = () => {
 
             {/* Password strength / criteria helper chips */}
             {newPassword.length > 0 && (
-              <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
-                <p className="font-semibold text-slate-600 dark:text-slate-400 text-[11px] uppercase tracking-wider">
-                  Password Requirements:
-                </p>
-                <div className="grid grid-cols-2 gap-1 text-[11px]">
+              <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-600 dark:text-slate-400 text-[11px] uppercase tracking-wider">
+                    Password Strength:
+                  </span>
+                  <span className={`text-[11px] font-bold ${strength.text}`}>
+                    {strength.label} ({strength.percent}%)
+                  </span>
+                </div>
+                {/* Visual strength bar */}
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${strength.color}`}
+                    style={{ width: `${strength.percent}%` }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-1 text-[11px] pt-1">
                   <span className={`flex items-center gap-1 ${criteria.length ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-400'}`}>
                     <Check className={`w-3.5 h-3.5 ${criteria.length ? 'opacity-100' : 'opacity-30'}`} />
                     Min 10 characters
@@ -187,6 +229,10 @@ export const ChangePassword = () => {
                   <span className={`flex items-center gap-1 ${criteria.number ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-400'}`}>
                     <Check className={`w-3.5 h-3.5 ${criteria.number ? 'opacity-100' : 'opacity-30'}`} />
                     1 number (0-9)
+                  </span>
+                  <span className={`flex items-center gap-1 ${criteria.symbol ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-400'} col-span-2`}>
+                    <Check className={`w-3.5 h-3.5 ${criteria.symbol ? 'opacity-100' : 'opacity-30'}`} />
+                    1 special symbol (!@#$%^&*...)
                   </span>
                 </div>
               </div>

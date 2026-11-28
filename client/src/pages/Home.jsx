@@ -43,10 +43,14 @@ import {
 } from 'lucide-react';
 
 export const Home = () => {
-  const { role, hasPermission } = useAuth();
+  const { user, role, hasPermission } = useAuth();
   const { preferences, updatePreferences, resetLayout } = usePreferences();
   const outletCtx = useOutletContext();
   const [isCustomizeMode, setIsCustomizeMode] = useState(false);
+
+  const isSuperAdmin = role === 'super_admin';
+  const isAttendanceTracked = user?.employee?.employment?.attendanceTracked ?? (!isSuperAdmin);
+  const shouldShowAttendance = isAttendanceTracked && !isSuperAdmin;
 
   const isAdminOrHr = ['super_admin', 'admin', 'hr'].includes(role) || hasPermission('dashboard.read');
   const isManagerOrAdmin = ['super_admin', 'admin', 'hr', 'project_manager'].includes(role);
@@ -174,38 +178,57 @@ export const Home = () => {
         </div>
       </div>
 
+      {/* Mobile Top Attendance Card (<1024px): Prominent Clock-in right at the top */}
+      {shouldShowAttendance && (
+        <div className="lg:hidden mb-6">
+          <AttendanceWidget />
+        </div>
+      )}
+
       {/* Two-Column Main Layout: LEFT (Wide) & RIGHT (Attendance & Small Widgets) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT COLUMN: Wide widget stack (7 cols on lg, 8 cols on xl) */}
         <div className="lg:col-span-7 xl:col-span-8 space-y-6 min-w-0">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={activeWidgetIds}
-              strategy={verticalListSortingStrategy}
+          {activeWidgetIds.length === 0 ? (
+            <div className="p-12 text-center bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
+              <Sparkles className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">No widgets displayed</p>
+              <p className="text-xs text-slate-400 mt-1">Click "Customize Layout" above to add widgets to your home dashboard.</p>
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              <div className="space-y-6">
-                {activeWidgetIds.map((id) => (
-                  <SortableWidget
-                    key={id}
-                    id={id}
-                    isCustomizeMode={isCustomizeMode}
-                  >
-                    {renderWidget(id)}
-                  </SortableWidget>
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+              <SortableContext
+                items={activeWidgetIds}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-6">
+                  {activeWidgetIds.map((id) => (
+                    <SortableWidget
+                      key={id}
+                      id={id}
+                      isCustomizeMode={isCustomizeMode}
+                    >
+                      {renderWidget(id)}
+                    </SortableWidget>
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
         </div>
 
         {/* RIGHT COLUMN: Narrow fixed column (5 cols on lg, 4 cols on xl) */}
         <div className="lg:col-span-5 xl:col-span-4 space-y-6">
-          {/* Top fixed Attendance Widget */}
-          <AttendanceWidget />
+          {/* Top fixed Attendance Widget (shown on desktop only for tracked staff) */}
+          {shouldShowAttendance && (
+            <div className="hidden lg:block">
+              <AttendanceWidget />
+            </div>
+          )}
 
           {/* Celebrations this week */}
           <CelebrationsWidget />

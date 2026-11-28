@@ -29,6 +29,35 @@ const attendanceLogSchema = new mongoose.Schema(
       enum: ['web', 'manual', 'bulk', 'regularized'],
       default: 'web',
     },
+    lateMinutes: {
+      type: Number,
+      default: 0,
+    },
+    lateReasonKey: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    lateReasonLabel: {
+      type: String,
+      default: null,
+    },
+    lateNote: {
+      type: String,
+      default: null,
+    },
+    ip: {
+      type: String,
+      default: '',
+    },
+    device: {
+      type: String,
+      default: '',
+    },
+    retainedUntil: {
+      type: Date,
+      default: () => new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // Retained 90 days
+    },
     note: {
       type: String,
       default: '',

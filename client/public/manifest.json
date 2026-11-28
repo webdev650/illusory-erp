@@ -1,0 +1,18 @@
+{
+  "short_name": "Illusory ERP",
+  "name": "Illusory ERP — Operating System",
+  "description": "Enterprise Resource Planning & Agency Operating System for Illusory Design Studios Pvt. Ltd.",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0B0F19",
+  "theme_color": "#7c3aed",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/"
+}

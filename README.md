@@ -366,3 +366,44 @@ A confidential, multi-perspective performance evaluation and OKR goal management
 - **Official Letters**: Pre-seeded sample letter templates for Salary Increment (`SAMPLE_INCREMENT`), Promotion (`SAMPLE_PROMOTION`), and Appraisal Summary (`SAMPLE_APPRAISAL_SUMMARY`).
 - **Approval Engine**: Goal requisitions integrate seamlessly with the universal approval registry (`type: 'goal'`).
 - **Employee Master**: The Employee Detail page features a dedicated **Performance** tab displaying historical published reviews.
+
+---
+
+## 🔐 First Login, Persistent Sessions & Responsive Employee Home
+
+### 1. Mandatory First Login Password Change Guard
+- **Strict Server-Side Enforcement**: Users with `mustChangePassword: true` receive HTTP `403` with `{ code: 'PASSWORD_CHANGE_REQUIRED' }` on all backend API routes except `/change-password`, `/auth/me`, `/auth/logout`, and `/health`.
+- **Password Complexity Rules**: Minimum 10 characters, at least 1 uppercase letter (`A-Z`), 1 lowercase letter (`a-z`), 1 numeric digit (`0-9`), and 1 special symbol (`!@#$%^&*...`).
+- **Reuse Prevention**: Cannot match the temporary password, the user's official email, or any of the user's last 5 passwords (stored securely as bcrypt hashes in `user.passwordHistory`).
+- **Temporary Password Expiry**: Temporary passwords expire after 7 days (`tempPasswordExpiresAt`). Expired temporary passwords are blocked with `TEMP_PASSWORD_EXPIRED`, requiring HR reset.
+- **Post-Change Lifecycle**: Clears `mustChangePassword`, records `passwordChangedAt`, immediately revokes all other active sessions, dispatches an essential security alert email (`account_changed`, sent even if automation is OFF), logs to `AuditLog`, and redirects the user to Home.
+
+### 2. Dual-Token Persistent Sessions & Sliding Inactivity Expiry
+- **Token Architecture**: Short-lived access token (15 minutes) paired with a rotating refresh token stored exclusively in an `httpOnly`, `secure`, `sameSite: 'lax'` cookie. Zero tokens are stored in `localStorage` or `sessionStorage`.
+- **MongoDB Session Model (`Session`)**: Tracks `user`, `refreshTokenHash` (SHA-256 hash), `familyId`, `deviceLabel` (e.g. *Chrome on Windows*, *Safari on iOS*), `ip`, `userAgent`, `lastUsedAt`, `expiresAt`, `revokedAt`, and `replacedBy`.
+- **Sliding Inactivity Expiry**:
+  - `employee` / other roles: Default 30 days of inactivity.
+  - `super_admin` and `hr`: Default 7 days of inactivity.
+  - Background silent refresh automatically refreshes tokens on activity without interrupting the user.
+- **Refresh Token Rotation & Reuse Detection**: Every refresh generates a new rotating refresh token and marks the previous token rotated. If a previously rotated token is ever replayed (token reuse/theft attempt), the entire session family (`familyId`) is immediately revoked, logging out all sessions and forcing re-login.
+- **Session Management**: "Active Sessions & Connected Devices" in My Profile displays all devices and active timestamps, with single-device revocation and "Sign Out All Other Devices".
+- **Re-Authentication Middleware (`requireReAuth`)**: Sensitive actions (revealing bank/statutory numbers, changing passwords, exporting confidential audits) require re-entering the password, issuing a temporary 10-minute reauth token.
+
+### 3. Responsive Employee Home & Top Attendance Card
+- **Fully Responsive Layout**: Built with mobile-first CSS supporting viewport widths 360px, 390px, 768px, 1024px, and 1440px.
+- **Mobile Bottom Navigation Bar**: Fixed bottom navigation bar (<768px) with accessible $\ge 44$px touch targets for **Home**, **Tasks**, **Leave**, **Approvals**, and **Profile**.
+- **Role-Aware Landing**: Employees and HR land on Home with the Attendance card placed prominently at the top (<1024px) with $\ge 48$px mobile-friendly punch buttons. Super Admins land on the Admin Overview without the Clock In widget (`employment.attendanceTracked: false`).
+- **Resilient Live Server Clock**: Timer resyncs on window focus (`focus`) and phone wake (`visibilitychange`). Displays official studio policy: *"Total policy hours: 07 hr 45 min"*.
+- **Early Exit Warning Modal**: Confirmations when clocking out before policy hours (<6:45 PM early exit alert / <6:00 PM half-day warning).
+
+### 4. Clock-In Intent & Late Reason Popup (IST 10:01 AM+)
+- **Cutoff Rules**:
+  - `09:45 AM` to `10:00:59 AM IST`: Clock-in succeeds immediately as on-time.
+  - `10:01:00 AM IST onwards`: Clock-in evaluates against holidays, week-offs, approved leaves, and approved remote work. If unexcused, returns `409 Conflict` with `{ code: 'LATE_REASON_REQUIRED', data: { intentId, lateMinutes, reasons } }`.
+- **10-Minute Ephemeral Intent (`ClockInIntent`)**: Stores the frozen timestamp of the employee's initial punch button press in MongoDB with a 10-minute TTL index (`{ expires: 0 }`).
+- **Two-Step Responsive Popup**:
+  - Desktop: Centered modal; Mobile: Bottom sheet drawer.
+  - Step 1: 8 pre-seeded reason categories (*Transport breakdown*, *Health issue / Doctor*, *Family emergency*, *Heavy weather*, *Power / Internet outage*, *Personal commitment*, *Client / Studio visit*, *Other*).
+  - Step 2: 300-character explanation box (mandatory for *Other*).
+- **Frozen Timestamp Preservation**: Submitting the late reason creates the `AttendanceLog` using the frozen timestamp of the initial button press, ensuring the employee is not further penalized for time spent completing the modal.
+- **Notice on 2nd Monthly Late Entry**: Displays a supportive studio advisory alerting the employee when this is their second late clock-in for the current calendar month.

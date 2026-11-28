@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { Employee } from '../models/Employee.js';
 import { AttendanceLog } from '../models/AttendanceLog.js';
 import { AttendancePolicy } from '../models/AttendancePolicy.js';
+import { ClockInIntent } from '../models/ClockInIntent.js';
+import { LateReasonOption } from '../models/LateReasonOption.js';
 import {
   calculateDayStatus,
   getEmployeeMonthDayStatuses,
@@ -10,6 +12,11 @@ import {
   getCompanyPolicy,
   toISTDateString,
 } from '../services/dayStatus.service.js';
+import {
+  initiateClockIn,
+  submitLateClockIn,
+  getActiveLateReasons,
+} from '../services/clockIn.service.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import { logAudit } from '../middleware/audit.js';
 import { exportToExcel, exportToCsv } from '../services/export.service.js';
@@ -265,16 +272,125 @@ export const recordSelfPunch = async (req, res, next) => {
       return sendError(res, 'Invalid punch type. Must be in, out, break_in, or break_out.', 400);
     }
 
+    // Special logic for Clock In ('in'): check policy lateness window and intent
+    if (type === 'in') {
+      try {
+        const result = await initiateClockIn({
+          employeeId,
+          userId: req.user._id,
+          req,
+        });
+        return sendSuccess(res, result, 'Clocked in successfully');
+      } catch (err) {
+        if (err.statusCode === 409 && err.code === 'LATE_REASON_REQUIRED') {
+          return res.status(409).json({
+            success: false,
+            code: 'LATE_REASON_REQUIRED',
+            message: err.message,
+            data: err.data,
+          });
+        }
+        throw err;
+      }
+    }
+
+    // For other punches ('out', 'break_in', 'break_out'): record directly
     const result = await recordPunch({
       employeeId,
       type,
       time: new Date(),
       source: 'web',
       note: note || '',
-      changedBy: null,
+      changedBy: req.user._id,
     });
 
     return sendSuccess(res, result, `Recorded ${type.toUpperCase()} punch successfully`);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/v1/attendance/punch/late-reason
+ * Submits the selected late reason and note using the frozen server time from ClockInIntent.
+ */
+export const submitLateReasonPunch = async (req, res, next) => {
+  try {
+    const employeeId = req.user.employee?._id || req.user.employee;
+    if (!employeeId) {
+      return sendError(res, 'No linked employee record found for your user account', 400);
+    }
+
+    const { intentId, reasonKey, note } = req.body;
+    if (!intentId || !reasonKey) {
+      return sendError(res, 'intentId and reasonKey are required', 400);
+    }
+
+    const result = await submitLateClockIn({
+      intentId,
+      reasonKey,
+      note,
+      userId: req.user._id,
+      req,
+    });
+
+    return sendSuccess(res, result, 'Clocked in successfully with recorded late reason');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/v1/attendance/punch/intent/:intentId
+ * Cancels a late clock-in intent leaving employee not clocked in.
+ */
+export const cancelClockInIntent = async (req, res, next) => {
+  try {
+    const { intentId } = req.params;
+    await ClockInIntent.deleteOne({ intentId });
+    return sendSuccess(res, null, 'Clock-in cancelled');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/v1/attendance/late-reasons
+ * Retrieves list of active late reasons for the clock-in popup.
+ */
+export const getLateReasons = async (req, res, next) => {
+  try {
+    const reasons = await getActiveLateReasons();
+    return sendSuccess(res, reasons, 'Late reasons retrieved');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/v1/attendance/late-reasons/:key
+ * HR / Admin endpoint to edit late reason properties (label, emoji, requiresNote, order, isActive).
+ */
+export const updateLateReason = async (req, res, next) => {
+  try {
+    const { key } = req.params;
+    const { label, emoji, requiresNote, order, isActive } = req.body;
+
+    const reason = await LateReasonOption.findOneAndUpdate(
+      { key },
+      { $set: { label, emoji, requiresNote, order, isActive } },
+      { new: true, upsert: true }
+    );
+
+    await logAudit({
+      req,
+      action: 'UPDATE_LATE_REASON_OPTION',
+      entity: 'LateReasonOption',
+      entityId: reason._id,
+      changes: req.body,
+    });
+
+    return sendSuccess(res, reason, 'Late reason option updated successfully');
   } catch (error) {
     next(error);
   }

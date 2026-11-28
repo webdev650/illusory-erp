@@ -33,6 +33,24 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    passwordChangedAt: {
+      type: Date,
+      default: null,
+    },
+    tempPasswordExpiresAt: {
+      type: Date,
+      default: null, // 7-day expiration from issuance
+    },
+    passwordHistory: {
+      type: [
+        {
+          passwordHash: { type: String, required: true },
+          changedAt: { type: Date, default: Date.now },
+        },
+      ],
+      select: false,
+      default: [],
+    },
     isDemo: {
       type: Boolean,
       default: false,
@@ -77,6 +95,27 @@ const userSchema = new mongoose.Schema(
 // Method to verify password
 userSchema.methods.comparePassword = async function (enteredPassword) {
   return bcrypt.compare(enteredPassword, this.passwordHash);
+};
+
+// Method to verify against previous password history (last 5 passwords + current password)
+userSchema.methods.checkPasswordHistory = async function (enteredPassword) {
+  // Check against current active password
+  if (this.passwordHash) {
+    const isCurrentMatch = await bcrypt.compare(enteredPassword, this.passwordHash);
+    if (isCurrentMatch) return true;
+  }
+
+  // Check against previous history entries
+  if (Array.isArray(this.passwordHistory)) {
+    for (const entry of this.passwordHistory) {
+      if (entry.passwordHash) {
+        const isMatch = await bcrypt.compare(enteredPassword, entry.passwordHash);
+        if (isMatch) return true;
+      }
+    }
+  }
+
+  return false;
 };
 
 // Static method to hash password

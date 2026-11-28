@@ -7,6 +7,10 @@ import {
   updateManualPunch,
   deleteManualPunch,
   recordSelfPunch,
+  submitLateReasonPunch,
+  cancelClockInIntent,
+  getLateReasons,
+  updateLateReason,
   getPolicy,
   updatePolicy,
   exportAttendance,
@@ -58,7 +62,11 @@ router.use('/reports', reportsRoutes);
 // Calendar & self-service
 router.get('/calendar', getAttendanceCalendar);
 router.get('/calendar/day', getDayDetails);
-router.post('/punch', recordSelfPunch);
+router.post('/punch', requirePermission('attendance.clockIn'), recordSelfPunch);
+router.post('/punch/late-reason', requirePermission('attendance.clockIn'), submitLateReasonPunch);
+router.delete('/punch/intent/:intentId', cancelClockInIntent);
+router.get('/late-reasons', getLateReasons);
+router.put('/late-reasons/:key', requirePermission('attendance.lateReason.configure'), updateLateReason);
 
 // Manage logs (HR/Admin/Managers)
 router.get('/manage-logs', getManageLogs);

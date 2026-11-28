@@ -14,18 +14,27 @@ import {
   Loader2,
   Camera,
   CreditCard,
+  Laptop,
+  Smartphone,
+  LogOut,
+  Trash2,
+  Clock,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHeader, Button } from '../components/ui';
 
 export const MyProfile = () => {
-  const { user, role } = useAuth();
+  const { user, role, logoutAll } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [err, setErr] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Sessions state
+  const [sessions, setSessions] = useState([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
 
   // Editable fields for employee self-service
   const [phone, setPhone] = useState('');
@@ -54,9 +63,43 @@ export const MyProfile = () => {
     }
   };
 
+  const fetchSessions = async () => {
+    try {
+      setLoadingSessions(true);
+      const res = await api.get('/auth/sessions');
+      if (res.success && Array.isArray(res.data)) {
+        setSessions(res.data);
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
   useEffect(() => {
     fetchProfile();
+    fetchSessions();
   }, []);
+
+  const handleRevokeSession = async (sessionId) => {
+    try {
+      const res = await api.delete(`/auth/sessions/${sessionId}`);
+      if (res.success) {
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        setMsg('Session revoked successfully.');
+      }
+    } catch (error) {
+      setErr(error.message || 'Failed to revoke session');
+    }
+  };
+
+  const handleLogoutAll = async () => {
+    if (!window.confirm('Are you sure you want to log out from all devices? You will need to sign in again.')) {
+      return;
+    }
+    await logoutAll();
+  };
 
   const handleSaveSelf = async (e) => {
     e.preventDefault();
@@ -370,6 +413,97 @@ export const MyProfile = () => {
               {profile?.bank?.ifsc || 'HDFC0001234'}
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Persistent Login & Active Sessions Management */}
+      <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-700 gap-4">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Laptop className="w-4 h-4 text-brand-600" />
+              Active Sessions & Connected Devices
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Devices currently signed into your Illusory ERP account. You can revoke any unrecognized session.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogoutAll}
+            className="px-4 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold text-xs rounded-xl transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out All Other Devices</span>
+          </button>
+        </div>
+
+        <div className="divide-y divide-slate-100 dark:divide-slate-700/60 mt-4">
+          {loadingSessions ? (
+            <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center space-x-2">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-500" />
+              <span>Loading active sessions...</span>
+            </div>
+          ) : sessions.length === 0 ? (
+            <p className="py-6 text-center text-xs text-slate-400">
+              No other active sessions found.
+            </p>
+          ) : (
+            sessions.map((s) => {
+              const isMobile = /iphone|ipad|android|mobile/i.test(s.deviceLabel);
+              const lastActive = new Date(s.lastUsedAt).toLocaleString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+              return (
+                <div
+                  key={s.id}
+                  className="py-3.5 flex items-center justify-between gap-4 text-xs"
+                >
+                  <div className="flex items-center space-x-3">
+                    <span className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 flex items-center justify-center flex-shrink-0">
+                      {isMobile ? (
+                        <Smartphone className="w-4 h-4" />
+                      ) : (
+                        <Laptop className="w-4 h-4" />
+                      )}
+                    </span>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {s.deviceLabel}
+                        </span>
+                        {s.isCurrent && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                            Current Device
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        IP: {s.ip} • Last active: {lastActive} (IST)
+                      </p>
+                    </div>
+                  </div>
+
+                  {!s.isCurrent && (
+                    <button
+                      type="button"
+                      onClick={() => handleRevokeSession(s.id)}
+                      className="px-3 py-1.5 text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg text-xs font-semibold transition-colors flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Revoke</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

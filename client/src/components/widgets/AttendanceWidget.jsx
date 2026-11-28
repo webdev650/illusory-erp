@@ -4,6 +4,7 @@ import { Card, Button, Badge } from '../ui';
 import RemoteWorkModal from '../modals/RemoteWorkModal';
 import AttendanceRegularizeModal from '../modals/AttendanceRegularizeModal';
 import ApplyLeaveModal from '../modals/ApplyLeaveModal';
+import LateClockInModal from '../modals/LateClockInModal';
 import {
   Clock,
   LogIn,
@@ -16,9 +17,11 @@ import {
   MoreVertical,
   Plus,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Loader2,
   FileText,
+  WifiOff,
 } from 'lucide-react';
 
 export const AttendanceWidget = ({ onStatusChange }) => {
@@ -32,6 +35,14 @@ export const AttendanceWidget = ({ onStatusChange }) => {
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [wfhModalOpen, setWfhModalOpen] = useState(false);
   const [regularizeModalOpen, setRegularizeModalOpen] = useState(false);
+
+  // Late Clock In Modal State
+  const [lateModalOpen, setLateModalOpen] = useState(false);
+  const [lateIntentData, setLateIntentData] = useState(null);
+
+  // Early Exit Confirmation Modal State
+  const [earlyExitModalOpen, setEarlyExitModalOpen] = useState(false);
+  const [earlyExitMessage, setEarlyExitMessage] = useState('');
 
   // Live timer seconds
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -58,11 +69,16 @@ export const AttendanceWidget = ({ onStatusChange }) => {
     fetchAttendance();
   }, [fetchAttendance]);
 
-  // Recalculate on window focus
+  // Recalculate on window focus or visibility change (e.g. mobile wake)
   useEffect(() => {
     const handleFocus = () => fetchAttendance();
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') fetchAttendance();
+    });
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [fetchAttendance]);
 
   // Live work hours timer calculation
@@ -97,28 +113,87 @@ export const AttendanceWidget = ({ onStatusChange }) => {
     return () => clearInterval(interval);
   }, [data, isToday]);
 
+  // Check early exit threshold before clocking out
+  const checkEarlyExit = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentMins = currentHour * 60 + currentMinute;
+    const policyEndMins = 18 * 60 + 45; // 18:45 IST
+
+    if (currentMins < policyEndMins) {
+      if (currentMins < 18 * 60) {
+        setEarlyExitMessage(
+          'You are clocking out before 6:00 PM. Illusory Rule Book Section 5.1: Leaving before 6:00 PM counts as a Half Day working day.'
+        );
+      } else if (currentMins < 18 * 60 + 30) {
+        setEarlyExitMessage(
+          'You are leaving before 6:30 PM. Illusory Rule Book Section 5.1: Leaving between 6:00 PM and 6:30 PM logs an Early Exit chip.'
+        );
+      } else {
+        setEarlyExitMessage(
+          'You are leaving before standard shift end (6:45 PM). Rule Book allows exit after 6:30 PM.'
+        );
+      }
+      setEarlyExitModalOpen(true);
+      return true;
+    }
+    return false;
+  };
+
   // Actions
-  const handlePunch = async (type) => {
+  const handlePunch = async (type, bypassEarlyCheck = false) => {
+    // Check internet connection
+    if (!navigator.onLine) {
+      setMsg({
+        type: 'error',
+        text: 'No internet connection detected. Please connect to the internet to record attendance.',
+      });
+      return;
+    }
+
+    if (type === 'out' && !bypassEarlyCheck) {
+      const isEarly = checkEarlyExit();
+      if (isEarly) return;
+    }
+
     try {
       setActionLoading(true);
       setMsg(null);
       let endpoint = '';
-      if (type === 'in') endpoint = '/hr/attendance/check-in';
+      if (type === 'in') endpoint = '/attendance/punch';
       else if (type === 'out') endpoint = '/hr/attendance/check-out';
       else if (type === 'break-in') endpoint = '/hr/attendance/break-in';
       else if (type === 'break-out') endpoint = '/hr/attendance/break-out';
 
-      const res = await api.post(endpoint, {});
+      const res = await api.post(endpoint, { type });
       if (res.success) {
         setMsg({ type: 'success', text: res.message });
         await fetchAttendance();
         if (onStatusChange) onStatusChange();
       }
     } catch (err) {
+      // Handle Late Clock-In 409 Intent requirement
+      if (err.code === 'LATE_REASON_REQUIRED' || err.status === 409) {
+        setLateIntentData(err.data);
+        setLateModalOpen(true);
+        return;
+      }
       setMsg({ type: 'error', text: err.message || 'Operation failed' });
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleLateSuccess = async (resultData) => {
+    setLateModalOpen(false);
+    setLateIntentData(null);
+    setMsg({
+      type: 'success',
+      text: resultData?.notice || 'Clock-in completed successfully with recorded reason.',
+    });
+    await fetchAttendance();
+    if (onStatusChange) onStatusChange();
   };
 
   // Date Navigation
@@ -135,12 +210,20 @@ export const AttendanceWidget = ({ onStatusChange }) => {
 
   const record = data?.record;
   const shift = data?.shift || { startTime: '10:00', endTime: '18:45' };
+  const dayStatus = data?.dayStatus;
   const isClockedIn = Boolean(record?.checkIn);
   const isClockedOut = Boolean(record?.checkOut);
 
   // Check ongoing break
   const activeBreak = record?.breaks?.find((b) => !b.end);
   const isOnBreak = Boolean(activeBreak);
+
+  // Check if today is a non-working day or excused
+  const isHoliday = dayStatus?.type === 'holiday';
+  const isWeekOff = dayStatus?.type === 'week_off';
+  const isLeave = dayStatus?.type === 'leave';
+  const isRemote = dayStatus?.type === 'remote_work' || dayStatus?.type === 'wfh';
+  const nonWorkingMessage = dayStatus?.label || (isHoliday ? 'Holiday' : isWeekOff ? 'Sunday Off' : isLeave ? 'Approved Leave' : isRemote ? 'Approved Remote Work' : null);
 
   // Format elapsed seconds to HH:MM:SS
   const formatTime = (totalSec) => {
@@ -158,6 +241,7 @@ export const AttendanceWidget = ({ onStatusChange }) => {
       time: new Date(record.checkIn),
       icon: LogIn,
       color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40',
+      note: record.lateReasonLabel || null,
     });
   }
   if (record?.breaks && record.breaks.length > 0) {
@@ -206,13 +290,17 @@ export const AttendanceWidget = ({ onStatusChange }) => {
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
               Attendance
             </h3>
-            {isClockedIn && !isClockedOut && (
-              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md ${
+            {isClockedIn && !isClockedOut ? (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                 isOnBreak
                   ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                   : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
               }`}>
                 {isOnBreak ? 'On Break' : 'Clocked In'}
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold text-slate-400">
+                Not clocked in
               </span>
             )}
           </div>
@@ -249,11 +337,19 @@ export const AttendanceWidget = ({ onStatusChange }) => {
             {isToday ? formatTime(elapsedSeconds) : `${record?.workHours || 0} hrs`}
           </div>
           <div className="flex items-center justify-center space-x-2 mt-1.5 text-[11px] text-slate-400">
-            <span>Policy: 9 hrs</span>
+            <span>Total policy hours: 07 hr 45 min</span>
             <span>•</span>
             <span>Shift: {shift.startTime} - {shift.endTime}</span>
           </div>
         </div>
+
+        {/* Non-working / holiday status line */}
+        {isToday && (isHoliday || isWeekOff || isLeave || isRemote) && (
+          <div className="mb-3 p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 text-xs flex items-center justify-between">
+            <span className="font-semibold">{nonWorkingMessage}</span>
+            <span className="text-[10px] opacity-80">Shift exempt</span>
+          </div>
+        )}
 
         {/* Feedback message banner */}
         {msg && (
@@ -269,7 +365,7 @@ export const AttendanceWidget = ({ onStatusChange }) => {
             ) : (
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
             )}
-            <span className="truncate">{msg.text}</span>
+            <span className="leading-tight">{msg.text}</span>
           </div>
         )}
 
@@ -280,11 +376,11 @@ export const AttendanceWidget = ({ onStatusChange }) => {
             {!isClockedIn ? (
               <Button
                 variant="primary"
-                size="md"
+                size="lg"
                 icon={LogIn}
                 loading={actionLoading}
                 onClick={() => handlePunch('in')}
-                className="col-span-2 py-3 bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20 text-white font-bold"
+                className="col-span-2 min-h-[48px] bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20 text-white font-bold text-sm tracking-wide rounded-2xl"
               >
                 Clock In
               </Button>
@@ -296,7 +392,7 @@ export const AttendanceWidget = ({ onStatusChange }) => {
                   icon={LogOut}
                   loading={actionLoading}
                   onClick={() => handlePunch('out')}
-                  className="font-bold py-2.5"
+                  className="font-bold py-2.5 min-h-[44px]"
                 >
                   Clock Out
                 </Button>
@@ -309,7 +405,7 @@ export const AttendanceWidget = ({ onStatusChange }) => {
                     icon={Coffee}
                     loading={actionLoading}
                     onClick={() => handlePunch('break-in')}
-                    className="font-semibold py-2.5"
+                    className="font-semibold py-2.5 min-h-[44px]"
                   >
                     Break In
                   </Button>
@@ -320,14 +416,14 @@ export const AttendanceWidget = ({ onStatusChange }) => {
                     icon={Coffee}
                     loading={actionLoading}
                     onClick={() => handlePunch('break-out')}
-                    className="font-semibold py-2.5 bg-amber-600 hover:bg-amber-700 text-white"
+                    className="font-semibold py-2.5 bg-amber-600 hover:bg-amber-700 text-white min-h-[44px]"
                   >
                     Break Out
                   </Button>
                 )}
               </>
             ) : (
-              <div className="col-span-2 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-center text-xs font-semibold text-slate-500">
+              <div className="col-span-2 py-3 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-center text-xs font-semibold text-slate-500">
                 Completed shift for today ({record?.workHours || 0} hrs logged)
               </div>
             )}
@@ -340,7 +436,7 @@ export const AttendanceWidget = ({ onStatusChange }) => {
             <span>{isToday ? "Today's Log" : 'Punch Activity'}</span>
             <button
               onClick={() => setRegularizeModalOpen(true)}
-              className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center space-x-1"
+              className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center space-x-1 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Log</span>
@@ -362,7 +458,14 @@ export const AttendanceWidget = ({ onStatusChange }) => {
                       <div className={`p-1.5 rounded-lg ${log.color}`}>
                         <Icon className="w-3.5 h-3.5" />
                       </div>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">{log.type}</span>
+                      <div>
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">{log.type}</span>
+                        {log.note && (
+                          <span className="block text-[10px] text-amber-600 dark:text-amber-400 truncate max-w-[120px]">
+                            {log.note}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center space-x-1 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
@@ -389,7 +492,7 @@ export const AttendanceWidget = ({ onStatusChange }) => {
             size="sm"
             icon={Calendar}
             onClick={() => setLeaveModalOpen(true)}
-            className="w-full text-xs font-semibold"
+            className="w-full text-xs font-semibold min-h-[40px]"
           >
             Apply Leave
           </Button>
@@ -399,12 +502,67 @@ export const AttendanceWidget = ({ onStatusChange }) => {
             size="sm"
             icon={HomeIcon}
             onClick={() => setWfhModalOpen(true)}
-            className="w-full text-xs font-semibold"
+            className="w-full text-xs font-semibold min-h-[40px]"
           >
-            Apply WFH
+            Apply Remote Work
           </Button>
         </div>
       </Card>
+
+      {/* Late Clock-In Reason Modal */}
+      <LateClockInModal
+        isOpen={lateModalOpen}
+        intentData={lateIntentData}
+        onSuccess={handleLateSuccess}
+        onCancel={() => {
+          setLateModalOpen(false);
+          setLateIntentData(null);
+        }}
+        onRestartIntent={() => {
+          setLateModalOpen(false);
+          setLateIntentData(null);
+          handlePunch('in');
+        }}
+      />
+
+      {/* Early Exit Confirmation Dialog */}
+      {earlyExitModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in"
+          role="dialog"
+        >
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="w-12 h-12 bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 rounded-2xl flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="text-base font-bold text-slate-900 dark:text-white">Early Exit Confirmation</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                {earlyExitMessage}
+              </p>
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEarlyExitModalOpen(false)}
+                className="w-1/2 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEarlyExitModalOpen(false);
+                  handlePunch('out', true);
+                }}
+                className="w-1/2 py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Clock Out Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       <ApplyLeaveModal
