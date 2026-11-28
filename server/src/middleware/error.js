@@ -31,7 +31,8 @@ export const errorHandler = (err, req, res, next) => {
   // Handle Zod Error
   if (err.name === 'ZodError' || (err.issues && Array.isArray(err.issues))) {
     statusCode = 400;
-    message = 'Validation Error';
+    const issueMessages = (err.issues || []).map((i) => i.message).filter(Boolean);
+    message = issueMessages.length > 0 ? issueMessages.join(', ') : 'Validation Error';
     errors = (err.issues || []).map((i) => `${i.path.join('.')}: ${i.message}`);
   }
 

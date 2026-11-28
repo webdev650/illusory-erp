@@ -27,8 +27,13 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    const errorData = error.response?.data;
     const message =
-      error.response?.data?.message || error.message || 'Something went wrong';
+      (Array.isArray(errorData?.errors) && errorData.errors.length > 0
+        ? errorData.errors.join(', ')
+        : errorData?.message) ||
+      error.message ||
+      'Something went wrong';
     
     // If unauthenticated and not on the login page, clear token
     if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
