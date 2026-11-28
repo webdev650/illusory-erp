@@ -77,9 +77,9 @@ export const BottomNav = () => {
           )}
         </NavLink>
 
-        {/* 4. Approvals / Notifications */}
+        {/* 4. Notifications */}
         <NavLink
-          to="/hrms/approvals"
+          to="/notifications"
           className={({ isActive }) =>
             `flex flex-col items-center justify-center min-h-[44px] min-w-[44px] text-[10px] font-medium transition-colors ${
               isActive
@@ -93,7 +93,7 @@ export const BottomNav = () => {
               <span className={`p-1 rounded-xl transition-colors ${isActive ? 'bg-brand-50 dark:bg-brand-900/40' : ''}`}>
                 <Bell className="w-5 h-5" />
               </span>
-              <span className="mt-0.5">Approvals</span>
+              <span className="mt-0.5">Notifications</span>
             </>
           )}
         </NavLink>

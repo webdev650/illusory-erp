@@ -15,13 +15,22 @@ export const ERP_MODULES = [
   },
   {
     key: 'hrms',
-    label: 'HRMS (Employee Master)',
+    label: 'People & HR',
     icon: 'Users',
     path: '/hrms',
     status: 'live',
-    requiredPermission: 'employee.read',
+    requiredPermission: ['employee.read', 'employee.readSelf'],
     description: 'Complete employee directory, profile management, onboarding wizard, and document records',
     children: [
+      {
+        key: 'my-profile',
+        label: 'My Profile',
+        icon: 'User',
+        path: '/my-profile',
+        status: 'live',
+        requiredPermission: 'employee.readSelf',
+        description: 'View and update your personal details, emergency contacts, and active devices',
+      },
       {
         key: 'hrms-dashboard',
         label: 'HRMS Dashboard',
@@ -37,17 +46,8 @@ export const ERP_MODULES = [
         icon: 'Calendar',
         path: '/hrms/attendance/calendar',
         status: 'live',
-        requiredPermission: 'attendance.read',
+        requiredPermission: ['attendance.read', 'attendance.readSelf'],
         description: 'Month calendar with daily log statuses, work hours, breaks, and late counts',
-      },
-      {
-        key: 'attendance-regularization',
-        label: 'Apply Log Regularization',
-        icon: 'Clock',
-        path: '/hrms/attendance/regularization',
-        status: 'live',
-        requiredPermission: null,
-        description: 'Submit clock in/out regularization requests for missed punches',
       },
       {
         key: 'attendance-leave',
@@ -55,8 +55,17 @@ export const ERP_MODULES = [
         icon: 'FileText',
         path: '/hrms/attendance/leave',
         status: 'live',
-        requiredPermission: null,
+        requiredPermission: 'leave.apply',
         description: 'Request casual, sick, annual, bereavement, or unpaid leave',
+      },
+      {
+        key: 'attendance-regularization',
+        label: 'Apply Log Regularization',
+        icon: 'Clock',
+        path: '/hrms/attendance/regularization',
+        status: 'live',
+        requiredPermission: 'attendance.record',
+        description: 'Submit clock in/out regularization requests for missed punches',
       },
       {
         key: 'attendance-remote-work',
@@ -64,19 +73,46 @@ export const ERP_MODULES = [
         icon: 'Home',
         path: '/hrms/attendance/remote-work',
         status: 'live',
-        requiredPermission: null,
+        requiredPermission: 'attendance.remoteWork',
         description: 'Apply for work-from-home or off-site client engagement days',
       },
-      // Hourly Partial Day is NOT defined by Rule Book (Hidden: HR must define eligible duration and calculation first)
       {
-        key: 'attendance-comp-off',
-        label: 'Apply Comp-Off Credits',
-        icon: 'CheckSquare',
-        path: '/hrms/attendance/comp-off',
+        key: 'hrms-letters',
+        label: 'My Letters and Requests',
+        icon: 'FileText',
+        path: '/hrms/letters',
         status: 'live',
-        requiredPermission: null,
-        description: 'Claim comp-off leave credits for working on holidays or week-offs',
+        requiredPermission: ['letter.view', 'letter.readSelf'],
+        description: 'View received appointment letters, appraisal summaries, and submit letter requests',
       },
+      {
+        key: 'hrms-warnings',
+        label: 'My Warnings and PIP',
+        icon: 'AlertTriangle',
+        path: '/hrms/warnings',
+        status: 'live',
+        requiredPermission: ['hr.access', 'employee.readSelf'],
+        description: 'Confidential formal notices and performance improvement plan milestones',
+      },
+      {
+        key: 'hrms-performance',
+        label: 'My Performance',
+        icon: 'TrendingUp',
+        path: '/hrms/performance',
+        status: 'live',
+        requiredPermission: 'performance.viewOwn',
+        description: 'Review cycles, OKR goals, 360 feedback, 1:1 syncs, and self-evaluations',
+      },
+      {
+        key: 'hrms-employees',
+        label: 'Company Directory',
+        icon: 'Users',
+        path: '/hrms/employees',
+        status: 'live',
+        requiredPermission: ['employee.read', 'employee.readSelf'],
+        description: 'Staff directory with grid/table views, profiles, and export options',
+      },
+      // Management & Admin only subpages below:
       {
         key: 'attendance-manage-logs',
         label: 'Manage Logs',
@@ -101,7 +137,7 @@ export const ERP_MODULES = [
         icon: 'CalendarDays',
         path: '/hrms/attendance/roster',
         status: 'live',
-        requiredPermission: 'attendance.read',
+        requiredPermission: 'attendance.manage',
         description: 'Assign special shifts, manage department rosters, and handle schedule changes',
       },
       {
@@ -139,15 +175,6 @@ export const ERP_MODULES = [
         status: 'live',
         requiredPermission: 'approval.read',
         description: 'Pending leave, regularization, and HR requests awaiting decision',
-      },
-      {
-        key: 'hrms-employees',
-        label: 'Employees',
-        icon: 'Users',
-        path: '/hrms/employees',
-        status: 'live',
-        requiredPermission: 'employee.read',
-        description: 'Staff directory with grid/table views, profiles, and export options',
       },
       {
         key: 'hrms-letters',
@@ -217,12 +244,46 @@ export const ERP_MODULES = [
   },
   {
     key: 'projects',
-    label: 'Projects',
+    label: 'Project',
     icon: 'Briefcase',
     path: '/projects',
     status: 'live',
     requiredPermission: ['project.read', 'project.readOwn'],
     description: 'Client design & tech contracts, deliverables, milestones, budgets, and team allocation',
+    children: [
+      {
+        key: 'my-projects',
+        label: 'My Projects',
+        icon: 'Briefcase',
+        path: '/projects',
+        status: 'live',
+        requiredPermission: ['project.read', 'project.readOwn'],
+      },
+      {
+        key: 'my-tasks',
+        label: 'My Tasks',
+        icon: 'CheckSquare',
+        path: '/tasks',
+        status: 'live',
+        requiredPermission: ['task.read', 'task.readOwn'],
+      },
+      {
+        key: 'my-timesheet',
+        label: 'My Timesheet (Activity Tracker)',
+        icon: 'Clock',
+        path: '/timesheets',
+        status: 'live',
+        requiredPermission: ['activity.logOwn', 'activity.readOwn'],
+      },
+      {
+        key: 'meetings',
+        label: 'Meetings',
+        icon: 'Video',
+        path: '/modules/meetings',
+        status: 'soon',
+        requiredPermission: null,
+      },
+    ],
     plannedFeatures: [
       'Client project lifecycle management (Design & Development)',
       'Budget allocation vs actual hourly burn rate',
@@ -361,12 +422,22 @@ export const ERP_MODULES = [
   },
   {
     key: 'support',
-    label: 'Support Helpdesk',
+    label: 'Support',
     icon: 'HelpCircle',
     path: '/modules/support',
     status: 'soon',
-    requiredPermission: 'support.read',
+    requiredPermission: null,
     description: 'Internal IT, hardware, facilities, and HR query ticketing system',
+    children: [
+      {
+        key: 'my-tickets',
+        label: 'Raise & Track My Tickets',
+        icon: 'HelpCircle',
+        path: '/modules/support',
+        status: 'soon',
+        requiredPermission: null,
+      },
+    ],
     plannedFeatures: [
       'Internal ticket submission (IT, Facilities, HR, Finance)',
       'SLA timers and priority escalation',
@@ -380,8 +451,50 @@ export const ERP_MODULES = [
     icon: 'Wrench',
     path: '/modules/utilities',
     status: 'soon',
-    requiredPermission: 'utility.read',
+    requiredPermission: null,
     description: 'Company policy library, document templates, meeting room booking, and studio directory',
+    children: [
+      {
+        key: 'announcements',
+        label: 'Announcements',
+        icon: 'Sparkles',
+        path: '/modules/utilities/announcements',
+        status: 'soon',
+        requiredPermission: null,
+      },
+      {
+        key: 'documents',
+        label: 'Documents',
+        icon: 'FileText',
+        path: '/modules/utilities/documents',
+        status: 'soon',
+        requiredPermission: null,
+      },
+      {
+        key: 'policy-hub',
+        label: 'Policy Hub',
+        icon: 'ShieldCheck',
+        path: '/modules/utilities/policies',
+        status: 'soon',
+        requiredPermission: null,
+      },
+      {
+        key: 'holidays',
+        label: 'Holidays',
+        icon: 'Calendar',
+        path: '/modules/utilities/holidays',
+        status: 'soon',
+        requiredPermission: null,
+      },
+      {
+        key: 'faqs',
+        label: 'FAQs',
+        icon: 'HelpCircle',
+        path: '/modules/utilities/faqs',
+        status: 'soon',
+        requiredPermission: null,
+      },
+    ],
     plannedFeatures: [
       'Studio meeting room and equipment booking calendar',
       'Official company policy documents and employee handbook',
@@ -429,3 +542,137 @@ export const ERP_MODULES = [
     ],
   },
 ];
+
+/**
+ * Default role-to-menu mapping configuration
+ */
+export const DEFAULT_ROLE_MENUS = {
+  employee: {
+    allowedModuleKeys: ['home', 'hrms', 'projects', 'support', 'utilities'],
+    allowedSubmenuKeys: {
+      hrms: [
+        'my-profile',
+        'attendance-calendar',
+        'attendance-leave',
+        'attendance-regularization',
+        'attendance-remote-work',
+        'hrms-letters',
+        'hrms-warnings',
+        'hrms-performance',
+        'hrms-employees',
+      ],
+      projects: ['my-projects', 'my-tasks', 'my-timesheet', 'meetings'],
+      support: ['my-tickets'],
+      utilities: ['announcements', 'documents', 'policy-hub', 'holidays', 'faqs'],
+    },
+    topTabs: [
+      { label: 'Home', path: '/', key: 'home' },
+      { label: 'Tasks', path: '/tasks', key: 'tasks' },
+      { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
+    ],
+  },
+  manager: {
+    allowedModuleKeys: ['home', 'hrms', 'projects', 'support', 'utilities', 'approvals'],
+    allowedSubmenuKeys: {
+      hrms: [
+        'my-profile',
+        'attendance-calendar',
+        'attendance-leave',
+        'attendance-regularization',
+        'attendance-remote-work',
+        'hrms-letters',
+        'hrms-warnings',
+        'hrms-performance',
+        'hrms-employees',
+        'team-attendance',
+        'team-performance',
+      ],
+      projects: ['my-projects', 'my-tasks', 'my-timesheet', 'meetings', 'team-projects'],
+      support: ['my-tickets'],
+      utilities: ['announcements', 'documents', 'policy-hub', 'holidays', 'faqs'],
+    },
+    topTabs: [
+      { label: 'Home', path: '/', key: 'home' },
+      { label: 'Tasks', path: '/tasks', key: 'tasks' },
+      { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
+      { label: 'Approvals', path: '/approvals', key: 'approvals' },
+    ],
+  },
+  hr: {
+    allowedModuleKeys: [
+      'home',
+      'hrms',
+      'hr',
+      'projects',
+      'payroll',
+      'recruitment',
+      'support',
+      'utilities',
+      'reports',
+      'approvals',
+    ],
+    allowedSubmenuKeys: null, // Full access to subpages
+    topTabs: [
+      { label: 'Home', path: '/', key: 'home' },
+      { label: 'HR', path: '/hr', key: 'hr' },
+      { label: 'Tasks', path: '/tasks', key: 'tasks' },
+      { label: 'Reports', path: '/modules/reports', key: 'reports' },
+      { label: 'Approvals', path: '/approvals', key: 'approvals' },
+      { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
+    ],
+  },
+  super_admin: {
+    allowedModuleKeys: 'all',
+    allowedSubmenuKeys: null,
+    topTabs: [
+      { label: 'Home', path: '/', key: 'home' },
+      { label: 'HR', path: '/hr', key: 'hr' },
+      { label: 'Tasks', path: '/tasks', key: 'tasks' },
+      { label: 'Reports', path: '/modules/reports', key: 'reports' },
+      { label: 'Approvals', path: '/approvals', key: 'approvals' },
+      { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
+    ],
+  },
+};
+
+/**
+ * Resolves the filtered modules and subpages for a given role and employee preferences
+ */
+export const resolveRoleMenu = ({ roleKey = 'employee', user = null, customConfig = null }) => {
+  const config =
+    customConfig ||
+    DEFAULT_ROLE_MENUS[roleKey] ||
+    DEFAULT_ROLE_MENUS.employee;
+
+  const remoteWorkAllowed = user?.employee?.employment?.remoteWorkAllowed !== false;
+
+  const allowedModules =
+    config.allowedModuleKeys === 'all'
+      ? ERP_MODULES
+      : ERP_MODULES.filter((m) => config.allowedModuleKeys.includes(m.key));
+
+  return allowedModules.map((mod) => {
+    if (!mod.children) return mod;
+
+    const allowedChildKeys =
+      config.allowedSubmenuKeys?.[mod.key] ||
+      (config.allowedSubmenuKeys instanceof Map ? config.allowedSubmenuKeys.get(mod.key) : null);
+
+    let filteredChildren = mod.children;
+
+    if (allowedChildKeys && Array.isArray(allowedChildKeys)) {
+      filteredChildren = mod.children.filter((c) => allowedChildKeys.includes(c.key));
+    }
+
+    // Hide Remote Work if employee does not have remote work allowed
+    if (mod.key === 'hrms' && !remoteWorkAllowed) {
+      filteredChildren = filteredChildren.filter((c) => c.key !== 'attendance-remote-work');
+    }
+
+    return {
+      ...mod,
+      children: filteredChildren,
+    };
+  });
+};
+

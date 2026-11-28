@@ -6,6 +6,7 @@ import { Holiday } from '../models/Holiday.js';
 import { LeaveRequest } from '../models/LeaveRequest.js';
 import { RemoteWorkRequest } from '../models/RemoteWorkRequest.js';
 import { Employee } from '../models/Employee.js';
+import { Shift } from '../models/Shift.js';
 import {
   getCompanyPolicy,
   toISTDateString,
@@ -133,6 +134,18 @@ export const initiateClockIn = async ({ employeeId, userId, req, forceServerTime
   if (!emp) {
     const err = new Error('Employee record not found');
     err.statusCode = 404;
+    throw err;
+  }
+
+  // Shift assignment check: if no shift assigned to employee and no default shift exists, block Clock In
+  let resolvedShift = emp.employment?.shift;
+  if (!resolvedShift) {
+    resolvedShift = await Shift.findOne({ isDefault: true });
+  }
+  if (!resolvedShift) {
+    const err = new Error('No shift assigned, contact HR');
+    err.statusCode = 400;
+    err.code = 'NO_SHIFT_ASSIGNED';
     throw err;
   }
 

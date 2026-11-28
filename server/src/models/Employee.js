@@ -188,6 +188,7 @@ const employeeSchema = new mongoose.Schema(
       },
       biometricId: { type: String, default: '', trim: true },
       attendanceTracked: { type: Boolean, default: true, index: true },
+      remoteWorkAllowed: { type: Boolean, default: true, index: true },
       sourceOfHire: { type: String, default: 'Direct' },
       referredBy: {
         type: mongoose.Schema.Types.ObjectId,

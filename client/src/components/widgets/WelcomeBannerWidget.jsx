@@ -1,30 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Card } from '../ui';
 import WelcomeIllustration from '../illustrations/WelcomeIllustration';
-import { Sparkles } from 'lucide-react';
+import api from '../../api/axios';
 
-const FRIENDLY_LINES = [
-  "Ready to craft exceptional digital experiences today?",
-  "Let's turn creative visions into impactful reality.",
-  "Great design is intelligence made visible. Have a productive day!",
-  "Collaborate, iterate, and build something wonderful.",
-  "Your studio dashboard is synced and ready.",
-  "Every pixel counts. Let's make today count too!",
-  "Welcome back to Illusory Design Studios workspace.",
-];
+export const toProperCase = (str) => {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+};
 
 export const WelcomeBannerWidget = () => {
   const { user, role } = useAuth();
+  const [greetingData, setGreetingData] = useState(null);
 
-  const firstName =
+  const rawFirstName =
     user?.employee?.personal?.firstName || user?.email?.split('@')[0] || 'Team';
+  const properFirstName = toProperCase(rawFirstName);
 
-  // Rotate line daily based on day of year
-  const dayOfYear = Math.floor(
-    (new Date() - new Date(new Date().getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24
-  );
-  const friendlyLine = FRIENDLY_LINES[dayOfYear % FRIENDLY_LINES.length];
+  useEffect(() => {
+    let isMounted = true;
+    const fetchGreeting = async () => {
+      try {
+        const res = await api.get('/home/greeting');
+        if (isMounted && res.success && res.data) {
+          setGreetingData(res.data);
+        }
+      } catch {
+        // Fallback to local default
+      }
+    };
+    fetchGreeting();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const headline = greetingData?.greeting || `Hello, ${properFirstName} 👋`;
+  const subline = greetingData?.subtext || "Great to see you again! Let's make today productive.";
 
   return (
     <Card
@@ -44,11 +56,11 @@ export const WelcomeBannerWidget = () => {
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            Hello, {firstName} 👋
+            {headline}
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-            {friendlyLine}
+            {subline}
           </p>
         </div>
 

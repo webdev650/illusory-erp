@@ -337,9 +337,22 @@ export const AttendanceWidget = ({ onStatusChange }) => {
             {isToday ? formatTime(elapsedSeconds) : `${record?.workHours || 0} hrs`}
           </div>
           <div className="flex items-center justify-center space-x-2 mt-1.5 text-[11px] text-slate-400">
-            <span>Total policy hours: 07 hr 45 min</span>
-            <span>•</span>
-            <span>Shift: {shift.startTime} - {shift.endTime}</span>
+            {data?.shiftAssigned === false ? (
+              <span className="text-amber-500 font-semibold flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" />
+                No shift assigned, contact HR
+              </span>
+            ) : (
+              <>
+                <span>Total policy hours: {data?.policyHoursFormatted || '07 hr 45 min'}</span>
+                {shift?.startTime && shift?.endTime && (
+                  <>
+                    <span>•</span>
+                    <span>Shift: {shift.startTime} - {shift.endTime}</span>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
 
@@ -374,16 +387,22 @@ export const AttendanceWidget = ({ onStatusChange }) => {
           <div className="grid grid-cols-2 gap-2 mb-4">
             {/* Clock In / Clock Out Primary Toggle */}
             {!isClockedIn ? (
-              <Button
-                variant="primary"
-                size="lg"
-                icon={LogIn}
-                loading={actionLoading}
-                onClick={() => handlePunch('in')}
-                className="col-span-2 min-h-[48px] bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20 text-white font-bold text-sm tracking-wide rounded-2xl"
-              >
-                Clock In
-              </Button>
+              data?.shiftAssigned === false ? (
+                <div className="col-span-2 py-3 px-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-center text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  Clock In blocked: No shift assigned, contact HR
+                </div>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="lg"
+                  icon={LogIn}
+                  loading={actionLoading}
+                  onClick={() => handlePunch('in')}
+                  className="col-span-2 min-h-[48px] bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20 text-white font-bold text-sm tracking-wide rounded-2xl"
+                >
+                  Clock In
+                </Button>
+              )
             ) : !isClockedOut ? (
               <>
                 <Button
@@ -392,34 +411,40 @@ export const AttendanceWidget = ({ onStatusChange }) => {
                   icon={LogOut}
                   loading={actionLoading}
                   onClick={() => handlePunch('out')}
-                  className="font-bold py-2.5 min-h-[44px]"
+                  className={`font-bold py-2.5 min-h-[44px] ${
+                    data?.breakPunchingEnabled ? 'col-span-1' : 'col-span-2'
+                  }`}
                 >
-                  Clock Out
+                  {record?.checkIn
+                    ? `${new Date(record.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - Clock Out`
+                    : 'Clock Out'}
                 </Button>
 
-                {/* Break In / Break Out Secondary Toggle */}
-                {!isOnBreak ? (
-                  <Button
-                    variant="secondary"
-                    size="md"
-                    icon={Coffee}
-                    loading={actionLoading}
-                    onClick={() => handlePunch('break-in')}
-                    className="font-semibold py-2.5 min-h-[44px]"
-                  >
-                    Break In
-                  </Button>
-                ) : (
-                  <Button
-                    variant="primary"
-                    size="md"
-                    icon={Coffee}
-                    loading={actionLoading}
-                    onClick={() => handlePunch('break-out')}
-                    className="font-semibold py-2.5 bg-amber-600 hover:bg-amber-700 text-white min-h-[44px]"
-                  >
-                    Break Out
-                  </Button>
+                {/* Break In / Break Out Secondary Toggle: Render ONLY when break punching is enabled */}
+                {data?.breakPunchingEnabled && (
+                  !isOnBreak ? (
+                    <Button
+                      variant="secondary"
+                      size="md"
+                      icon={Coffee}
+                      loading={actionLoading}
+                      onClick={() => handlePunch('break-in')}
+                      className="font-semibold py-2.5 min-h-[44px]"
+                    >
+                      Break In
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      icon={Coffee}
+                      loading={actionLoading}
+                      onClick={() => handlePunch('break-out')}
+                      className="font-semibold py-2.5 bg-amber-600 hover:bg-amber-700 text-white min-h-[44px]"
+                    >
+                      Break Out
+                    </Button>
+                  )
                 )}
               </>
             ) : (
@@ -486,7 +511,7 @@ export const AttendanceWidget = ({ onStatusChange }) => {
         </div>
 
         {/* Bottom Action Buttons: "Apply Leave" and "Apply Remote Work" */}
-        <div className="pt-4 mt-auto border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2">
+        <div className={`pt-4 mt-auto border-t border-slate-100 dark:border-slate-800 ${data?.remoteWorkAllowed ? 'grid grid-cols-2 gap-2' : 'flex'}`}>
           <Button
             variant="outline"
             size="sm"
@@ -497,15 +522,17 @@ export const AttendanceWidget = ({ onStatusChange }) => {
             Apply Leave
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            icon={HomeIcon}
-            onClick={() => setWfhModalOpen(true)}
-            className="w-full text-xs font-semibold min-h-[40px]"
-          >
-            Apply Remote Work
-          </Button>
+          {data?.remoteWorkAllowed && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={HomeIcon}
+              onClick={() => setWfhModalOpen(true)}
+              className="w-full text-xs font-semibold min-h-[40px]"
+            >
+              Apply Remote Work
+            </Button>
+          )}
         </div>
       </Card>
 

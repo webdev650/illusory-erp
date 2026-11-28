@@ -24,6 +24,10 @@ import {
   Layers,
   FileSpreadsheet,
   HelpCircle,
+  Menu,
+  Sparkles,
+  Eye,
+  Save,
 } from 'lucide-react';
 
 export const Configurations = () => {
@@ -124,6 +128,141 @@ export const Configurations = () => {
       alert(err.response?.data?.message || 'Failed to update policy settings');
     } finally {
       setPolicySaving(false);
+    }
+  };
+
+  // Menu Access Configuration State
+  const [menuConfigs, setMenuConfigs] = useState([]);
+  const [selectedRoleKey, setSelectedRoleKey] = useState('employee');
+  const [editingMenuConfig, setEditingMenuConfig] = useState(null);
+  const [menuSaving, setMenuSaving] = useState(false);
+
+  // Banner Greetings State
+  const [greetings, setGreetings] = useState([]);
+  const [greetingModal, setGreetingModal] = useState(false);
+  const [greetingForm, setGreetingForm] = useState({
+    template: 'Good morning, {name}',
+    subtext: "Great to see you again! Let's make today productive",
+    timeOfDay: 'morning',
+    order: 10,
+    isActive: true,
+  });
+  const [greetingSaving, setGreetingSaving] = useState(false);
+
+  const loadMenuConfigs = async () => {
+    try {
+      const res = await api.get('/configurations/menu-access');
+      if (res.success && res.data) {
+        setMenuConfigs(res.data);
+        const current = res.data.find((c) => c.roleKey === selectedRoleKey) || res.data[0];
+        if (current) {
+          setEditingMenuConfig(JSON.parse(JSON.stringify(current)));
+          setSelectedRoleKey(current.roleKey);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load menu configs:', err);
+    }
+  };
+
+  const handleSelectRoleConfig = (key) => {
+    setSelectedRoleKey(key);
+    const config = menuConfigs.find((c) => c.roleKey === key);
+    if (config) {
+      setEditingMenuConfig(JSON.parse(JSON.stringify(config)));
+    }
+  };
+
+  const handleToggleModule = (modKey) => {
+    if (!editingMenuConfig) return;
+    const current = editingMenuConfig.allowedModuleKeys || [];
+    const exists = current.includes(modKey);
+    const updated = exists ? current.filter((k) => k !== modKey) : [...current, modKey];
+    setEditingMenuConfig({ ...editingMenuConfig, allowedModuleKeys: updated });
+  };
+
+  const handleSaveMenuConfig = async () => {
+    if (!editingMenuConfig) return;
+    setMenuSaving(true);
+    try {
+      const res = await api.put(`/configurations/menu-access/${editingMenuConfig.roleKey}`, {
+        allowedModuleKeys: editingMenuConfig.allowedModuleKeys,
+        allowedSubmenuKeys: editingMenuConfig.allowedSubmenuKeys,
+        topTabs: editingMenuConfig.topTabs,
+        label: editingMenuConfig.label,
+      });
+      if (res.success) {
+        setMsg(`Menu access updated for role: ${editingMenuConfig.roleKey}`);
+        setTimeout(() => setMsg(null), 3500);
+        await loadMenuConfigs();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to save menu configuration');
+    } finally {
+      setMenuSaving(false);
+    }
+  };
+
+  const loadGreetings = async () => {
+    try {
+      const res = await api.get('/configurations/greetings');
+      if (res.success && res.data) {
+        setGreetings(res.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load greetings:', err);
+    }
+  };
+
+  const handleToggleGreeting = async (id, currentStatus) => {
+    try {
+      const res = await api.patch(`/configurations/greetings/${id}`, { isActive: !currentStatus });
+      if (res.success) {
+        setMsg('Greeting status updated');
+        setTimeout(() => setMsg(null), 3000);
+        loadGreetings();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update greeting');
+    }
+  };
+
+  const handleCreateGreeting = async (e) => {
+    e.preventDefault();
+    setGreetingSaving(true);
+    try {
+      const res = await api.post('/configurations/greetings', greetingForm);
+      if (res.success) {
+        setMsg('Greeting template added');
+        setGreetingModal(false);
+        setGreetingForm({
+          template: '',
+          subtext: '',
+          timeOfDay: 'any',
+          order: 10,
+          isActive: true,
+        });
+        setTimeout(() => setMsg(null), 3000);
+        loadGreetings();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to add greeting');
+    } finally {
+      setGreetingSaving(false);
+    }
+  };
+
+  const handleDeleteGreeting = async (id) => {
+    if (!window.confirm('Delete this greeting template?')) return;
+    try {
+      const res = await api.delete(`/configurations/greetings/${id}`);
+      if (res.success) {
+        setMsg('Greeting template deleted');
+        setTimeout(() => setMsg(null), 3000);
+        loadGreetings();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to delete greeting');
     }
   };
 
@@ -421,6 +560,36 @@ export const Configurations = () => {
         >
           <Layers className="w-4 h-4" />
           <span>Leave Policy & Comparison</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('menu-access');
+            loadMenuConfigs();
+          }}
+          className={`pb-3 flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'menu-access'
+              ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+              : 'border-transparent text-slate-400 hover:text-slate-700'
+          }`}
+        >
+          <Menu className="w-4 h-4" />
+          <span>Menu Access</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('greetings');
+            loadGreetings();
+          }}
+          className={`pb-3 flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'greetings'
+              ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+              : 'border-transparent text-slate-400 hover:text-slate-700'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Banner Greetings</span>
         </button>
       </div>
 
@@ -1394,6 +1563,296 @@ export const Configurations = () => {
                 </table>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 7: Menu Access & Role Navigation */}
+      {activeTab === 'menu-access' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Menu className="w-4 h-4 text-brand-600" />
+                Role-to-Menu Navigation Scoping
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Configure module visibility and navigation menus per role. Hidden modules are also enforced server-side.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                onClick={handleSaveMenuConfig}
+                disabled={menuSaving || !editingMenuConfig}
+                className="flex items-center gap-1.5 text-xs shadow-sm"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{menuSaving ? 'Saving...' : 'Save Configuration'}</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Role selector tabs */}
+          <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 dark:bg-slate-900/60 rounded-2xl w-fit">
+            {[
+              { key: 'employee', label: 'Employee' },
+              { key: 'manager', label: 'Manager / PM' },
+              { key: 'hr', label: 'Human Resources' },
+              { key: 'super_admin', label: 'Super Admin' },
+            ].map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => handleSelectRoleConfig(r.key)}
+                className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  selectedRoleKey === r.key
+                    ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+
+          {editingMenuConfig && (
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
+              <div>
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-3">
+                  Allowed Modules for {editingMenuConfig.label || editingMenuConfig.roleKey}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {[
+                    { key: 'home', label: 'Home & Clock-in', desc: 'Main home view & widgets' },
+                    { key: 'hrms', label: 'People & HR', desc: 'Profile, calendar, leaves, letters' },
+                    { key: 'projects', label: 'Project', desc: 'My projects, tasks, timesheet' },
+                    { key: 'support', label: 'Support Desk', desc: 'Tickets & issue tracking' },
+                    { key: 'utilities', label: 'Utilities & Hub', desc: 'Announcements, docs, holidays' },
+                    { key: 'approvals', label: 'Team Approvals', desc: 'Manager approvals center' },
+                    { key: 'payroll', label: 'Payroll Admin', desc: 'Salary, payslips, deductions' },
+                    { key: 'recruitment', label: 'Recruitment', desc: 'Jobs, applicants, pipeline' },
+                    { key: 'crm', label: 'CRM & Sales', desc: 'Leads, deals, client pipeline' },
+                    { key: 'assets', label: 'Asset Management', desc: 'Hardware & inventory logs' },
+                    { key: 'travel', label: 'Travel & Expense', desc: 'Claims, approvals, per diem' },
+                    { key: 'reports', label: 'Reports & Analytics', desc: 'Org-wide BI & audit' },
+                    { key: 'finance', label: 'Finance & Accounts', desc: 'Billing, invoices, vouchers' },
+                    { key: 'configurations', label: 'Configurations', desc: 'System settings & access' },
+                  ].map((mod) => {
+                    const isChecked = (editingMenuConfig.allowedModuleKeys || []).includes(mod.key);
+                    return (
+                      <label
+                        key={mod.key}
+                        className={`flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                          isChecked
+                            ? 'bg-brand-50/40 dark:bg-brand-950/20 border-brand-200 dark:border-brand-800'
+                            : 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-700/60 opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleModule(mod.key)}
+                          className="mt-0.5 rounded text-brand-600 focus:ring-brand-500"
+                        />
+                        <div className="text-xs">
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">{mod.label}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{mod.desc}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Top Tabs Preview */}
+              <div className="border-t border-slate-100 dark:border-slate-700/60 pt-5">
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-2">
+                  Top Navbar Tabs for this Role
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {(editingMenuConfig.topTabs || []).map((t, idx) => (
+                    <span
+                      key={idx}
+                      className="px-3 py-1 bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-xl border border-slate-200/60 dark:border-slate-600/60"
+                    >
+                      {t.label} ({t.path})
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 8: Banner Greetings */}
+      {activeTab === 'greetings' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-brand-600" />
+                Rotating Home Banner Greetings
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Greetings displayed on the employee home banner. Placeholders like {'{name}'} automatically insert the employee's title-cased first name.
+              </p>
+            </div>
+
+            <Button
+              variant="primary"
+              onClick={() => setGreetingModal(true)}
+              className="flex items-center gap-1.5 text-xs shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Greeting Template</span>
+            </Button>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-slate-400 uppercase font-bold text-[10px]">
+                  <th className="py-3 px-6">Greeting Headline</th>
+                  <th className="py-3 px-4">Subtext</th>
+                  <th className="py-3 px-4">Time of Day</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {greetings.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="py-8 text-center text-slate-400 text-xs">
+                      No greetings found. Click "Add Greeting Template" to create one.
+                    </td>
+                  </tr>
+                ) : (
+                  greetings.map((g) => (
+                    <tr key={g._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                      <td className="py-3.5 px-6 font-semibold text-slate-800 dark:text-slate-100">
+                        {g.template}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
+                        {g.subtext}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                          {g.timeOfDay}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            g.isActive
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                          }`}
+                        >
+                          {g.isActive ? 'Active' : 'Disabled'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-6 text-right space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleGreeting(g._id, g.isActive)}
+                          className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+                        >
+                          {g.isActive ? 'Disable' : 'Enable'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGreeting(g._id)}
+                          className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg"
+                          title="Delete template"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Greeting Template */}
+      {greetingModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-700">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
+              Add Banner Greeting Template
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Use {'{name}'} in the template to automatically insert the employee's title-cased first name.
+            </p>
+
+            <form onSubmit={handleCreateGreeting} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                  Template Headline <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Good morning, {name}"
+                  value={greetingForm.template}
+                  onChange={(e) => setGreetingForm({ ...greetingForm, template: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                  Subtext Line <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Great to see you again! Let's make today productive"
+                  value={greetingForm.subtext}
+                  onChange={(e) => setGreetingForm({ ...greetingForm, subtext: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                  Time of Day
+                </label>
+                <select
+                  value={greetingForm.timeOfDay}
+                  onChange={(e) => setGreetingForm({ ...greetingForm, timeOfDay: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                >
+                  <option value="any">Any Time</option>
+                  <option value="morning">Morning (5:00 AM - 12:00 PM)</option>
+                  <option value="afternoon">Afternoon (12:00 PM - 5:00 PM)</option>
+                  <option value="evening">Evening (5:00 PM - 9:00 PM)</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setGreetingModal(false)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={greetingSaving}
+                  className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold disabled:opacity-50"
+                >
+                  {greetingSaving ? 'Saving...' : 'Add Template'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

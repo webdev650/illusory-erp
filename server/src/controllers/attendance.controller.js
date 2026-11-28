@@ -6,6 +6,14 @@ import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import { normalizeToKolkataMidnight, isPunchLate } from '../utils/dateUtils.js';
 import { createApprovalRequest } from '../services/approval.service.js';
 import { logAudit } from '../middleware/audit.js';
+import { getCompanyPolicy } from '../services/dayStatus.service.js';
+
+export const formatWorkingHours = (minutes) => {
+  if (!minutes || minutes <= 0) return '00 hr 00 min';
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hrs.toString().padStart(2, '0')} hr ${mins.toString().padStart(2, '0')} min`;
+};
 
 // POST /api/v1/hr/attendance/check-in
 export const checkIn = async (req, res, next) => {
@@ -202,10 +210,13 @@ export const breakOut = async (req, res, next) => {
 // GET /api/v1/hr/attendance/today
 export const getTodayStatus = async (req, res, next) => {
   try {
-    const employeeId = req.user.employee?._id;
+    const employeeId = req.user.employee?._id || req.user.employee;
     if (!employeeId) {
       return sendSuccess(res, null, 'No linked employee');
     }
+
+    const emp = await Employee.findById(employeeId).populate('employment.shift');
+    const policy = await getCompanyPolicy();
 
     const targetDate = req.query.date ? new Date(req.query.date) : new Date();
     const queryMidnight = normalizeToKolkataMidnight(targetDate);
@@ -214,15 +225,25 @@ export const getTodayStatus = async (req, res, next) => {
       date: queryMidnight,
     });
 
-    const shift = (await Shift.findOne({ isDefault: true })) || {
-      startTime: '10:00',
-      endTime: '18:45',
-      graceMinutes: 15,
-    };
+    // Resolve assigned shift or default studio shift
+    let resolvedShift = emp?.employment?.shift;
+    if (!resolvedShift) {
+      resolvedShift = await Shift.findOne({ isDefault: true });
+    }
+
+    const hasShift = !!resolvedShift;
+    const workingMinutes = hasShift ? (resolvedShift.workingMinutes || 465) : 0;
+    const policyHoursFormatted = hasShift ? formatWorkingHours(workingMinutes) : null;
+    const shiftNotice = hasShift ? null : 'No shift assigned, contact HR';
 
     return sendSuccess(res, {
       record,
-      shift,
+      shift: resolvedShift || null,
+      shiftAssigned: hasShift,
+      policyHoursFormatted: policyHoursFormatted || '00 hr 00 min',
+      shiftNotice,
+      breakPunchingEnabled: !!policy?.breakPunchingMandatory,
+      remoteWorkAllowed: emp?.employment?.remoteWorkAllowed !== false,
       serverTime: new Date(),
     });
   } catch (err) {

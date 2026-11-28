@@ -49,11 +49,12 @@ export const Home = () => {
   const [isCustomizeMode, setIsCustomizeMode] = useState(false);
 
   const isSuperAdmin = role === 'super_admin';
-  const isAttendanceTracked = user?.employee?.employment?.attendanceTracked ?? true;
-  const shouldShowAttendance = isAttendanceTracked;
+  const isAttendanceTracked = user?.employee?.employment?.attendanceTracked ?? (!isSuperAdmin);
+  const shouldShowAttendance = !isSuperAdmin && isAttendanceTracked;
 
   const isAdminOrHr = ['super_admin', 'admin', 'hr'].includes(role) || hasPermission('dashboard.read');
   const isManagerOrAdmin = ['super_admin', 'admin', 'hr', 'project_manager'].includes(role);
+  const isEmployeeRole = role === 'employee';
 
   // Setup DnD sensors
   const sensors = useSensors(
@@ -67,20 +68,31 @@ export const Home = () => {
     })
   );
 
-  // Default layout if none set
-  const defaultLeftLayout = [
-    'welcome',
-    isAdminOrHr ? 'kpi' : null,
-    'my_tasks',
-    'tasks_due',
-    'weekly_hours',
-    'my_projects',
-    'leave_balance',
-    isManagerOrAdmin ? 'team_on_leave' : null,
-    'pending_approvals',
-    'announcements',
-    'charts',
-  ].filter(Boolean);
+  // Default layout tailored per role
+  const defaultLeftLayout = isEmployeeRole
+    ? [
+        'welcome',
+        'my_tasks',
+        'tasks_due',
+        'leave_balance',
+        'upcoming_holidays',
+        'announcements',
+        'celebrations',
+        'pending_approvals',
+      ]
+    : [
+        'welcome',
+        isAdminOrHr ? 'kpi' : null,
+        'my_tasks',
+        'tasks_due',
+        'weekly_hours',
+        'my_projects',
+        'leave_balance',
+        isManagerOrAdmin ? 'team_on_leave' : null,
+        'pending_approvals',
+        'announcements',
+        'charts',
+      ].filter(Boolean);
 
   const homeLayout = preferences?.homeLayout?.length
     ? preferences.homeLayout
@@ -192,8 +204,8 @@ export const Home = () => {
           {activeWidgetIds.length === 0 ? (
             <div className="p-12 text-center bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
               <Sparkles className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">No widgets displayed</p>
-              <p className="text-xs text-slate-400 mt-1">Click "Customize Layout" above to add widgets to your home dashboard.</p>
+              <p className="text-base font-semibold text-slate-700 dark:text-slate-200">Nothing here yet</p>
+              <p className="text-xs text-slate-400 mt-1">Your home dashboard is currently clear. Click "Customize Layout" above to add widgets.</p>
             </div>
           ) : (
             <DndContext

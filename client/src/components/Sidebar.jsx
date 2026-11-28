@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePreferences } from '../context/PreferencesContext';
-import { ERP_MODULES } from '../config/modules';
+import { ERP_MODULES, resolveRoleMenu } from '../config/modules';
 import api from '../api/axios';
 import {
   Home,
   Users,
+  User,
+  ShieldCheck,
   UserCheck,
   CheckSquare,
   CreditCard,
@@ -40,11 +42,14 @@ import {
   Calendar,
   CalendarDays,
   Edit2,
+  Eye,
 } from 'lucide-react';
 
 const ICON_MAP = {
   Home,
   Users,
+  User,
+  ShieldCheck,
   UserCheck,
   CheckSquare,
   CreditCard,
@@ -71,6 +76,7 @@ const ICON_MAP = {
   Calendar,
   CalendarDays,
   Edit2,
+  Eye,
 };
 
 const MODULE_TILE_COLORS = {
@@ -96,9 +102,15 @@ const MODULE_TILE_COLORS = {
 
 export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   const location = useLocation();
-  const { hasPermission } = useAuth();
+  const { user, role, hasPermission } = useAuth();
   const { preferences, togglePinModule, toggleSidebarCollapse, toggleTheme } = usePreferences();
   const [subPageSearch, setSubPageSearch] = useState('');
+
+  const [previewRole, setPreviewRole] = useState(() => {
+    return localStorage.getItem('previewRole') || null;
+  });
+
+  const effectiveRole = previewRole || role || 'employee';
 
   const isLevel2Collapsed = preferences?.sidebarCollapsed ?? false;
   const pinnedList = preferences?.pinnedModules || [];
@@ -124,16 +136,10 @@ export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     };
   }, []);
 
-  // Allowed modules based on RBAC
+  // Allowed modules based on role-to-menu mapping and user permissions
   const visibleModules = useMemo(() => {
-    return ERP_MODULES.filter((mod) => {
-      if (!mod.requiredPermission) return true;
-      if (Array.isArray(mod.requiredPermission)) {
-        return mod.requiredPermission.some((perm) => hasPermission(perm));
-      }
-      return hasPermission(mod.requiredPermission);
-    });
-  }, [hasPermission]);
+    return resolveRoleMenu({ roleKey: effectiveRole, user });
+  }, [effectiveRole, user]);
 
   // Determine current active module from URL
   const activeModule = useMemo(() => {
@@ -152,10 +158,7 @@ export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   const moduleChildren = useMemo(() => {
     if (!activeModule) return [];
     if (activeModule.children && activeModule.children.length > 0) {
-      return activeModule.children.filter((child) => {
-        if (!child.requiredPermission) return true;
-        return hasPermission(child.requiredPermission);
-      });
+      return activeModule.children;
     }
     // Fallback single item for modules without children
     return [
@@ -362,6 +365,45 @@ export const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 </button>
               </div>
             </div>
+
+            {/* Role Preview Switcher for Admins/HR */}
+            {['super_admin', 'hr', 'admin'].includes(role) && (
+              <div className="px-3 pt-2.5 pb-1 border-b border-slate-800/60">
+                <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 mb-1">
+                  <span className="flex items-center gap-1">
+                    <Eye className="w-3 h-3 text-brand-400" />
+                    Preview As:
+                  </span>
+                  {previewRole && (
+                    <button
+                      onClick={() => {
+                        setPreviewRole(null);
+                        localStorage.removeItem('previewRole');
+                      }}
+                      className="text-[10px] text-brand-400 hover:text-brand-300 font-semibold hover:underline"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={previewRole || ''}
+                  onChange={(e) => {
+                    const val = e.target.value || null;
+                    setPreviewRole(val);
+                    if (val) localStorage.setItem('previewRole', val);
+                    else localStorage.removeItem('previewRole');
+                  }}
+                  className="w-full text-[11px] py-1 px-2 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="">Actual Role ({role})</option>
+                  <option value="employee">Employee</option>
+                  <option value="manager">Manager</option>
+                  <option value="hr">HR</option>
+                  <option value="super_admin">Super Admin</option>
+                </select>
+              </div>
+            )}
 
             {/* Sub-page Search */}
             <div className="px-3 pt-3 pb-2">

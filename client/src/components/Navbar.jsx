@@ -92,25 +92,52 @@ export const Navbar = ({ setIsMobileOpen, onOpenCustomizeDrawer }) => {
     }
   };
 
-  // Quick-access tabs list (Home, HR, Tasks, Reports, Approvals, Meetings, etc.)
-  const quickTabKeys = ['home', 'hr', 'tasks', 'reports', 'approvals', 'meetings'];
+  // Quick-access tabs configurable per role
+  const previewRole = typeof window !== 'undefined' ? localStorage.getItem('previewRole') : null;
+  const effectiveRole = previewRole || role || 'employee';
 
-  const primaryTabs = [
-    { label: 'Home', path: '/', key: 'home' },
-    { label: 'HR', path: '/hr', key: 'hr', perm: 'hr.access' },
-    { label: 'Tasks', path: '/tasks', key: 'tasks', perm: ['task.read', 'task.readOwn'] },
-    { label: 'Reports', path: '/modules/reports', key: 'reports', perm: 'report.view' },
-    { label: 'Approvals', path: '/approvals', key: 'approvals' },
-    { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
-  ].filter((tab) => {
-    if (!tab.perm) return true;
-    if (Array.isArray(tab.perm)) return tab.perm.some((p) => hasPermission(p));
-    return hasPermission(tab.perm);
-  });
+  const roleTabsMap = {
+    employee: [
+      { label: 'Home', path: '/', key: 'home' },
+      { label: 'Tasks', path: '/tasks', key: 'tasks' },
+      { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
+    ],
+    manager: [
+      { label: 'Home', path: '/', key: 'home' },
+      { label: 'Tasks', path: '/tasks', key: 'tasks' },
+      { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
+      { label: 'Approvals', path: '/approvals', key: 'approvals' },
+    ],
+    project_manager: [
+      { label: 'Home', path: '/', key: 'home' },
+      { label: 'Tasks', path: '/tasks', key: 'tasks' },
+      { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
+      { label: 'Approvals', path: '/approvals', key: 'approvals' },
+    ],
+    hr: [
+      { label: 'Home', path: '/', key: 'home' },
+      { label: 'HR', path: '/hr', key: 'hr' },
+      { label: 'Tasks', path: '/tasks', key: 'tasks' },
+      { label: 'Reports', path: '/modules/reports', key: 'reports' },
+      { label: 'Approvals', path: '/approvals', key: 'approvals' },
+      { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
+    ],
+    super_admin: [
+      { label: 'Home', path: '/', key: 'home' },
+      { label: 'HR', path: '/hr', key: 'hr' },
+      { label: 'Tasks', path: '/tasks', key: 'tasks' },
+      { label: 'Reports', path: '/modules/reports', key: 'reports' },
+      { label: 'Approvals', path: '/approvals', key: 'approvals' },
+      { label: 'Meetings', path: '/modules/meetings', key: 'meetings' },
+    ],
+  };
+
+  const primaryTabs = roleTabsMap[effectiveRole] || roleTabsMap.employee;
+  const currentTabKeys = primaryTabs.map((t) => t.key);
 
   // Overflow modules that aren't in the primary tabs
   const overflowModules = ERP_MODULES.filter(
-    (m) => !quickTabKeys.includes(m.key) && (!m.requiredPermission || hasPermission(m.requiredPermission))
+    (m) => !currentTabKeys.includes(m.key) && (!m.requiredPermission || hasPermission(m.requiredPermission))
   );
 
   const displayName = user?.employee?.personal

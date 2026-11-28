@@ -19,7 +19,9 @@ import hrmsDashboardRoutes from './hrmsDashboard.routes.js';
 import attendanceRoutes from './attendance.routes.js';
 import letterRoutes from './letter.routes.js';
 import performanceRoutes from './performance.routes.js';
+import configRoutes from './config.routes.js';
 import { getMyPerformance } from '../controllers/performance.controller.js';
+import { getResolvedHomeGreeting } from '../controllers/menuConfig.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { verifyPublicLetter } from '../controllers/letter.controller.js';
 
@@ -30,6 +32,9 @@ router.get('/verify/:token', verifyPublicLetter);
 
 // Me Performance endpoint
 router.get('/me/performance', requireAuth, getMyPerformance);
+
+// Home Greeting endpoint
+router.get('/home/greeting', requireAuth, getResolvedHomeGreeting);
 
 // Liveness & readiness probes
 router.use('/', healthRoutes);
@@ -55,5 +60,6 @@ router.use('/tasks', taskRoutes);
 router.use('/activity', activityRoutes);
 router.use('/assets', assetRoutes);
 router.use('/preferences', preferenceRoutes);
+router.use('/configurations', configRoutes);
 
 export default router;
