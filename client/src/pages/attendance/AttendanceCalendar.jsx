@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AutomationBanner from '../../components/attendance/AutomationBanner';
+import AttendanceWidget from '../../components/widgets/AttendanceWidget';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -280,6 +281,13 @@ export const AttendanceCalendar = () => {
           </div>
         </div>
       </div>
+
+      {/* Quick Punch / Clock-In Section for Personal Attendance */}
+      {scope === 'self' && (
+        <div className="max-w-md">
+          <AttendanceWidget onStatusChange={fetchCalendar} />
+        </div>
+      )}
 
       {/* 2. Month Navigator Bar & Clickable Legend Chips */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-4">

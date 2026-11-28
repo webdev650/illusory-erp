@@ -49,8 +49,8 @@ export const Home = () => {
   const [isCustomizeMode, setIsCustomizeMode] = useState(false);
 
   const isSuperAdmin = role === 'super_admin';
-  const isAttendanceTracked = user?.employee?.employment?.attendanceTracked ?? (!isSuperAdmin);
-  const shouldShowAttendance = isAttendanceTracked && !isSuperAdmin;
+  const isAttendanceTracked = user?.employee?.employment?.attendanceTracked ?? true;
+  const shouldShowAttendance = isAttendanceTracked;
 
   const isAdminOrHr = ['super_admin', 'admin', 'hr'].includes(role) || hasPermission('dashboard.read');
   const isManagerOrAdmin = ['super_admin', 'admin', 'hr', 'project_manager'].includes(role);
